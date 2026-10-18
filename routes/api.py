@@ -6,13 +6,13 @@ from flask import Blueprint, abort, jsonify, redirect, request
 
 from config import Config
 from routes.caching import cdn_cache, no_store
-from services import charts, cheapshark
+from services import charts, cheapshark, discover
 from services import game as game_service
 from services import pricing, steam
 from services.http import UpstreamError, executor
 from services.recommendations import get_recommendations
 from services.search import search
-from services.vibes import VIBES, discover_by_vibes, score_vibes_for_app
+from services.vibes import score_vibes_for_app
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -145,7 +145,7 @@ def api_prices(appid: int):
 @bp.route("/recommendations/<int:appid>")
 @cdn_cache(s_maxage=6 * 3600)
 def api_recommendations(appid: int):
-    return jsonify(get_recommendations(str(appid)))
+    return jsonify(get_recommendations(appid))
 
 
 @bp.route("/vibes/<int:appid>")
@@ -160,8 +160,21 @@ def api_vibes(appid: int):
 @bp.route("/discover")
 @cdn_cache(s_maxage=6 * 3600)
 def api_discover():
-    keys = [m for m in request.args.getlist("m") if m in VIBES][:3]
-    return jsonify(discover_by_vibes(keys, limit=18) if keys else [])
+    """Games by vibe (?v=cozy&v=story, or the old ?m=…) and filters."""
+    keys = request.args.getlist("v") + request.args.getlist("m")
+    try:
+        max_price = float(request.args["max"]) if request.args.get("max") else None
+    except ValueError:
+        max_price = None
+    return jsonify(discover.discover(
+        keys,
+        max_price=max_price,
+        min_rating=_int_arg("rating", 0, 0, 100) or None,
+        players=request.args.get("players") if request.args.get("players") in discover.PLAYERS else None,
+        length=request.args.get("length") if request.args.get("length") in discover.LENGTHS else None,
+        deck=request.args.get("deck") == "1",
+        limit=_int_arg("limit", 36, 1, 60),
+    ))
 
 
 _ART_KEYS = {"header": "header", "capsule": "small_capsule", "hero": "hero", "library": "library_capsule"}

@@ -58,6 +58,7 @@
           <th scope="col">Game</th>
           <th scope="col" class="hide-sm">Reviews</th>
           <th scope="col" class="num">Price</th>
+          <th scope="col" class="num hide-sm" title="Value score at the sale price, where we know the game's typical playtime">Value</th>
           <th scope="col" class="num">Deal</th>
         </tr>
       </thead>
@@ -81,6 +82,12 @@
               <s class="muted small">{{ d.normal_price|usd }}</s>
             </a>
           </td>
+          <td class="num hide-sm">
+            {%- if d.value and d.value.score is not none -%}
+            <span class="deal-score num">{{ d.value.score }}</span>
+            <span class="deal-score__label">{{ d.value.label }}</span>
+            {%- else -%}<span class="muted">—</span>{%- endif -%}
+          </td>
           <td class="num">
             <span class="deal-score num">{{ d.deal_score }}</span>
             <span class="deal-score__label">{{ d.deal_label }}</span>
@@ -90,7 +97,7 @@
       </tbody>
     </table>
   </div>
-  <p class="small muted notes">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are.</p>
+  <p class="small muted notes">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the sale price, shown for games whose typical playtime we've measured.</p>
   {% endif %}
 </div>
 {% endblock %}

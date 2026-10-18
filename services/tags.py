@@ -14,7 +14,8 @@ TAGS_PATH = os.path.join(Config.DATA_DIR, "tags.json")
 
 
 @lru_cache(maxsize=1)
-def _bundled() -> dict[int, str]:
+def bundled() -> dict[int, str]:
+    """Tag names shipped in data/tags.json (refreshed by build_data.py)."""
     try:
         with open(TAGS_PATH, encoding="utf-8") as f:
             return {int(k): v for k, v in json.load(f).items()}
@@ -26,7 +27,7 @@ def names() -> dict[int, str]:
     try:
         return steam.tag_names()
     except UpstreamError:
-        return _bundled()
+        return bundled()
 
 
 def top_names(item_tags: list[tuple[int, int]], n: int = 3) -> list[str]:

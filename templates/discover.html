@@ -1,26 +1,111 @@
 {% extends "base.html" %}
 {% import "macros.html" as ui %}
 {% block title %}Discover games by vibe — PlayNexus{% endblock %}
-{% block description %}Pick up to three vibes, from cozy to souls-like, and find Steam games that match.{% endblock %}
+{% block description %}Pick up to three vibes, from cozy to souls-like, then filter by price, reviews, players and length to find your next Steam game.{% endblock %}
+
+{% macro option(name, value, label) -%}
+<option value="{{ value }}"{% if (args.get(name) or '') == value|string %} selected{% endif %}>{{ label }}</option>
+{%- endmacro %}
 
 {% block content %}
 <div class="wrap page">
   <header class="page-head">
     <div>
       <h1>Discover</h1>
-      <p class="lede">Pick up to three vibes. Games that fit all of them come first.</p>
+      <p class="lede">Pick up to three vibes, then narrow it down. Games that fit every vibe come first. Vibes come from the tags Steam players give each game.</p>
     </div>
   </header>
 
-  <div class="vibe-toggles" role="group" aria-label="Vibes">
-    {% for v in vibes %}
-    <button class="toggle" type="button" aria-pressed="false" data-vibe="{{ v.key }}">{{ v.label }}</button>
-    {% endfor %}
+  <form class="discover-form" method="get" action="{{ url_for('pages.discover_page') }}" data-discover-form>
+    <fieldset class="vibe-picker">
+      <legend class="eyebrow">Vibes <span class="muted">· up to three</span></legend>
+      <div class="vibe-toggles">
+        {% for v in vibes %}
+        <label class="toggle-check" title="{{ v.blurb }}">
+          <input type="checkbox" name="v" value="{{ v.key }}"{% if v.key in picked %} checked{% endif %}>
+          <span class="toggle">{{ v.label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="filters filters--5">
+      <label class="field">
+        <span class="field__label">Price</span>
+        <select class="select" name="max">
+          {{ option('max', '', 'Any price') }}{{ option('max', '0', 'Free only') }}{{ option('max', '5', 'Under $5') }}{{ option('max', '10', 'Under $10') }}{{ option('max', '20', 'Under $20') }}{{ option('max', '40', 'Under $40') }}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">Reviews</span>
+        <select class="select" name="rating">
+          {{ option('rating', '', 'Any') }}{{ option('rating', '70', '70% positive or more') }}{{ option('rating', '80', '80% or more') }}{{ option('rating', '90', '90% or more') }}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">Players</span>
+        <select class="select" name="players">
+          {{ option('players', '', 'Any') }}{% for key, label in players.items() %}{{ option('players', key, label) }}{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">Length</span>
+        <select class="select" name="length">
+          {{ option('length', '', 'Any length') }}{% for key, item in lengths.items() %}{{ option('length', key, item[0]) }}{% endfor %}
+        </select>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="deck" value="1"{% if args.get('deck') == '1' %} checked{% endif %}>
+        <span>Steam Deck verified</span>
+      </label>
+    </div>
+    <noscript><button class="btn" type="submit">Show games</button></noscript>
+  </form>
+
+  <section class="picker" data-picker hidden aria-live="polite"></section>
+
+  {% set results = result.results %}
+  <div class="results-head">
+    <p class="small muted" data-results-count>
+      {%- if picked %}{{ result.matches }} game{{ '' if result.matches == 1 else 's' }} fit{% if picked|length > 1 %} at least one of these vibes{% endif %}
+      {%- else %}Popular, well-reviewed games. Pick a vibe to narrow it down.{% endif -%}
+    </p>
+    {% if results %}<button class="btn btn--sm" type="button" data-pick>{{ ui.icon('dice', 'icon--sm') }}Pick for me</button>{% endif %}
   </div>
 
-  <p class="discover-status small muted" id="discover-status" aria-live="polite">Choose a vibe to start.</p>
-  <div class="card-grid" id="discover-results"></div>
+  {% if not results %}
+    {{ ui.empty("Nothing fits all of that", "Try fewer filters, or swap one of the vibes.", url_for('pages.discover_page'), "Start over") }}
+  {% else %}
+  <div class="dgrid" data-results>
+    {% for g in results %}
+    <article class="dcard" data-appid="{{ g.appid }}">
+      <a class="dcard__art" href="{{ url_for('pages.game_page', appid=g.appid) }}" tabindex="-1" aria-hidden="true">{{ ui.art(g.appid, g.header, 'header') }}</a>
+      <div class="dcard__body">
+        <h3 class="dcard__title"><a href="{{ url_for('pages.game_page', appid=g.appid) }}">{{ g.name }}</a></h3>
+        <p class="dcard__meta">
+          {%- if g.is_free %}<span>Free</span>{% elif g.price %}{% if g.price.discount %}<span class="discount">−{{ g.price.discount }}%</span> {% endif %}<span class="num">{{ g.price.final_formatted }}</span>{% endif -%}
+          {%- if g.review_pct is not none %}<span class="{{ ui.review_tone(g.review_pct) }}">{{ g.review_pct }}% positive</span>{% endif -%}
+          {%- if g.hours %}<span>~{{ g.hours|hours }}</span>{% endif -%}
+        </p>
+        {% if g.vibes %}
+        <div class="tags">
+          {% for v in g.vibes %}<span class="tag" title="Tagged {{ v.why|join(', ') }}">{{ v.label }}<span class="num muted">&nbsp;{{ v.score }}</span></span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="dcard__side">
+        {% if g.value and g.value.score is not none %}
+        <span class="dcard__value" title="{{ g.value.label }} at this price"><span class="num">{{ g.value.score }}</span><span class="tiny muted">value</span></span>
+        {% endif %}
+        <button class="btn btn--icon btn--sm btn--quiet" type="button" data-hide="{{ g.appid }}" aria-label="Not interested in {{ g.name }}" title="Not interested">{{ ui.icon('eye-off', 'icon--sm') }}</button>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="small muted notes" data-hidden-note hidden></p>
+  {% endif %}
 </div>
+<script type="application/json" id="page-data">{{ {"results": result.results, "picked": picked}|tojson }}</script>
 {% endblock %}
 
 {% block scripts %}

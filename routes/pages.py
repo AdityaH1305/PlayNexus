@@ -5,12 +5,11 @@ from __future__ import annotations
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from routes.caching import cdn_cache
-from services import charts, deals, price_index
+from services import charts, deals, discover, price_index, vibes
 from services import game as game_service
 from services import search
 from services.http import UpstreamError
 from services.search import find_appid_by_name
-from services.vibes import VIBES
 
 bp = Blueprint("pages", __name__)
 
@@ -29,8 +28,7 @@ def home():
         best = deals.filter_deals(deals.current_deals(), min_rating=80)[:6]
     except UpstreamError:
         best = []
-    vibes = sorted(({"key": k, "label": v["label"]} for k, v in VIBES.items()), key=lambda m: m["label"])
-    return render_template("index.html", playing=playing["rows"][:8], deals=best, vibes=vibes)
+    return render_template("index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list())
 
 
 @bp.route("/game", methods=["POST"])
@@ -139,10 +137,22 @@ def regions_page():
 
 
 @bp.route("/discover")
-@cdn_cache(s_maxage=86400)
+@cdn_cache(s_maxage=6 * 3600)
 def discover_page():
-    vibes = sorted(({"key": k, "label": v["label"]} for k, v in VIBES.items()), key=lambda m: m["label"])
-    return render_template("discover.html", vibes=vibes)
+    picked = [k for k in (vibes.normalize_key(v) for v in request.args.getlist("v")) if k]
+    picked = list(dict.fromkeys(picked))[:3]
+    filters = {
+        "max_price": _choice("max", (0, 5, 10, 20, 40)),
+        "min_rating": _choice("rating", (70, 80, 90)),
+        "players": request.args.get("players") if request.args.get("players") in discover.PLAYERS else None,
+        "length": request.args.get("length") if request.args.get("length") in discover.LENGTHS else None,
+        "deck": request.args.get("deck") == "1",
+    }
+    result = discover.discover(picked, **filters)
+    return render_template(
+        "discover.html", vibes=vibes.vibe_list(), picked=picked, result=result,
+        lengths=discover.LENGTHS, players=discover.PLAYERS, args=request.args,
+    )
 
 
 @bp.route("/compare")

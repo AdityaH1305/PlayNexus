@@ -4,8 +4,8 @@
                + 45 × reviews above 50 % positive
                + 15 × confidence from review count (100,000 reviews = full)
 
-Games in the discovery pool also get their full value score (Phase 4), since
-we know their typical playtime.
+Games in the discovery pool also get their full value score at the sale
+price, since we know their typical playtime.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from services import cheapshark, steam, tags
+from services import cheapshark, pool, steam, tags, value_score
 from services.http import UpstreamError, executor
 
 DEAL_LABELS = [(75, "Great deal"), (60, "Good deal"), (45, "Fair deal")]
@@ -63,7 +63,14 @@ def current_deals(pages: int = 2) -> list[dict[str, Any]]:
         count = it["review_count"] if it else d["rating_count"]
         pct = (it["review_pct"] if it else d["rating_pct"]) if count >= 10 else None
         score = deal_score(d["savings"], pct, count)
+        # Games in the discovery pool have measured playtime: give them a value score too.
+        known = pool.get(d["appid"])
+        value = None
+        if known and pct is not None and pool.has_hours(known):
+            v_score, v_label, _ = value_score.compute_value_score(d["sale_price"], pool.stats(known))
+            value = {"score": v_score, "label": v_label}
         rows.append({
+            "value": value,
             "appid": d["appid"],
             "name": (it or {}).get("name") or d["name"],
             "header": (it or {}).get("header") or d["thumb"],

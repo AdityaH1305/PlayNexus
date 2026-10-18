@@ -66,10 +66,11 @@ def load_game(appid: int) -> dict[str, Any] | None:
     item = item_future.result()
 
     try:
-        vibe_info = vibes.score_vibes_for_app(appid)
+        scores = vibes.score_tags(item["tags"]) if item and item["tags"] else {}
+        vibe_info = {"scores": {k: v["score"] for k, v in scores.items()}, "top": vibes.top_vibes(scores)}
     except Exception:  # vibes are a nice-to-have; never fail the page for them
         log.exception("vibe scoring failed for %s", appid)
-        vibe_info = {"top": []}
+        vibe_info = {"scores": {}, "top": []}
 
     usd = 0.0 if is_free else prices["reference_usd"]
     score, label, breakdown = value_score.compute_value_score(usd, stats, is_free=is_free)
