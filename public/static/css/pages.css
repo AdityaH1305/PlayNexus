@@ -80,6 +80,16 @@
   }
 }
 
+.card-grid--6 {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.tags--lg .tag {
+  height: 32px;
+  padding: 0 var(--s-3);
+  font-size: var(--fs-13);
+}
+
 .live-list__items {
   list-style: none;
   padding: var(--s-1) 0;
@@ -890,4 +900,186 @@
 
 .history-legend .down::before {
   background: var(--neg);
+}
+
+/* ── Deals ────────────────────────────────────────────── */
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 200px));
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+@media (max-width: 760px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.results-count {
+  margin-bottom: var(--s-2);
+}
+
+.notes {
+  margin-top: var(--s-4);
+  max-width: 80ch;
+}
+
+.deal-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  color: var(--text);
+}
+
+.deal-price:hover {
+  text-decoration: none;
+}
+
+.deal-price:hover .deal-price__now {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.deal-price__now {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.deal-score {
+  display: block;
+  font-size: var(--fs-17);
+  font-weight: 500;
+}
+
+.deal-score__label {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-12);
+  white-space: nowrap;
+}
+
+/* ── Regional price index ─────────────────────────────── */
+
+.index {
+  display: grid;
+}
+
+.index__head,
+.index__row {
+  display: grid;
+  grid-template-columns: 220px 120px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.index__head {
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-display);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.index__row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.index__region {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: 500;
+}
+
+.index__median {
+  font-size: var(--fs-20);
+  text-align: right;
+}
+
+.index__axis,
+.index__strip {
+  position: relative;
+  height: 22px;
+}
+
+.index__axis span {
+  position: absolute;
+  left: calc(var(--x) * 1%);
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.index__axis span:first-child {
+  transform: none;
+}
+
+.index__axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.index__strip::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--line);
+}
+
+.index__iqr {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: calc(var(--a) * 1%);
+  width: calc((var(--b) - var(--a)) * 1%);
+  border-radius: var(--r-tag);
+  background: var(--accent-wash);
+}
+
+.index__us {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(var(--x) * 1%);
+  border-left: 1px dashed var(--muted);
+}
+
+.index__dot {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--x) * 1%);
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--text-2);
+  opacity: 0.55;
+}
+
+.index__mid {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: calc(var(--x) * 1%);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .index__head,
+  .index__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }

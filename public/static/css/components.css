@@ -284,6 +284,13 @@
   color: var(--neg);
 }
 
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
 /* ── Inputs ───────────────────────────────────────────── */
 
 .input,

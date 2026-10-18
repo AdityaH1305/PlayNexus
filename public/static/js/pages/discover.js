@@ -42,6 +42,13 @@ async function refresh() {
   }
 }
 
+// Pre-select vibes from the address (?v=cozy_relaxing&v=…), e.g. from the home page.
+const wanted = new URLSearchParams(location.search).getAll("v").slice(0, MAX);
+if (wanted.length) {
+  toggles.forEach((b) => b.setAttribute("aria-pressed", String(wanted.includes(b.dataset.vibe))));
+  refresh();
+}
+
 toggles.forEach((btn) =>
   btn.addEventListener("click", () => {
     const on = btn.getAttribute("aria-pressed") === "true";

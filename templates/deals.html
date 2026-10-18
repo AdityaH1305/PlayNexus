@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Steam deals worth buying — PlayNexus{% endblock %}
+{% block description %}Today's Steam sales ranked by discount, reviews and how many people reviewed them.{% endblock %}
+
+{% macro option(name, value, label) -%}
+<option value="{{ value }}"{% if args[name] == value|string %} selected{% endif %}>{{ label }}</option>
+{%- endmacro %}
+
+{% block content %}
+<div class="wrap page">
+  <header class="page-head">
+    <div>
+      <h1>Deals</h1>
+      <p class="lede">Steam sales worth a look, ranked by how deep the discount is, how much players like the game, and how many of them reviewed it.</p>
+    </div>
+    <a class="small link-arrow" href="{{ url_for('pages.regions_page') }}">Where is Steam cheapest? {{ ui.icon('arrow-right', 'icon--sm') }}</a>
+  </header>
+
+  <form class="filters" method="get" action="{{ url_for('pages.deals_page') }}" data-autosubmit>
+    <label class="field">
+      <span class="field__label">Price</span>
+      <select class="select" name="max">
+        {{ option('max', '', 'Any price') }}{{ option('max', '5', 'Under $5') }}{{ option('max', '10', 'Under $10') }}{{ option('max', '20', 'Under $20') }}{{ option('max', '40', 'Under $40') }}
+      </select>
+    </label>
+    <label class="field">
+      <span class="field__label">Reviews</span>
+      <select class="select" name="rating">
+        {{ option('rating', '', 'Any') }}{{ option('rating', '70', '70% positive or more') }}{{ option('rating', '80', '80% or more') }}{{ option('rating', '90', '90% or more') }}
+      </select>
+    </label>
+    <label class="field">
+      <span class="field__label">Discount</span>
+      <select class="select" name="discount">
+        {{ option('discount', '', 'Any') }}{{ option('discount', '25', '25% off or more') }}{{ option('discount', '50', '50% or more') }}{{ option('discount', '75', '75% or more') }}
+      </select>
+    </label>
+    <label class="field">
+      <span class="field__label">Sort by</span>
+      <select class="select" name="sort">
+        {% for key, item in sorts.items() %}<option value="{{ key }}"{% if key == sort %} selected{% endif %}>{{ item[0] }}</option>{% endfor %}
+      </select>
+    </label>
+    <noscript><button class="btn" type="submit">Apply</button></noscript>
+  </form>
+
+  {% if error %}
+    {{ ui.empty("Deals aren't loading", "The deals feed isn't answering right now. Try again in a few minutes.") }}
+  {% elif not deals %}
+    {{ ui.empty("Nothing matches those filters", "Try a higher price limit or fewer filters.", url_for('pages.deals_page'), "Clear filters") }}
+  {% else %}
+  <p class="small muted results-count">{{ deals|length }} of {{ total }} games on sale</p>
+  <div class="table-wrap">
+    <table class="table deals-table">
+      <thead>
+        <tr>
+          <th scope="col">Game</th>
+          <th scope="col" class="hide-sm">Reviews</th>
+          <th scope="col" class="num">Price</th>
+          <th scope="col" class="num">Deal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in deals %}
+        <tr>
+          <td>
+            <a class="chart-game" href="{{ url_for('pages.game_page', appid=d.appid) }}">
+              <span class="chart-game__art">{{ ui.art(d.appid, d.capsule, 'capsule') }}</span>
+              <span class="chart-game__text">
+                <span class="chart-game__name">{{ d.name }}</span>
+                {% if d.tags %}<span class="chart-game__tags">{{ d.tags|join(' · ') }}</span>{% endif %}
+              </span>
+            </a>
+          </td>
+          <td class="hide-sm">{% if d.review_pct is not none %}{{ ui.review(d.review_label, d.review_pct, d.review_count) }}<div class="tiny muted num">{{ d.review_count|compact }} reviews</div>{% else %}<span class="muted small">Too few reviews</span>{% endif %}</td>
+          <td class="num nowrap">
+            <a class="deal-price" href="{{ d.url }}" target="_blank" rel="noopener sponsored" title="Buy on Steam">
+              <span class="discount">−{{ d.savings }}%</span>
+              <span class="deal-price__now">{{ d.sale_price|usd }}</span>
+              <s class="muted small">{{ d.normal_price|usd }}</s>
+            </a>
+          </td>
+          <td class="num">
+            <span class="deal-score num">{{ d.deal_score }}</span>
+            <span class="deal-score__label">{{ d.deal_label }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted notes">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module">
+  // Apply filters as soon as they change.
+  const form = document.querySelector("[data-autosubmit]");
+  form?.addEventListener("change", () => {
+    const params = new URLSearchParams(new FormData(form));
+    for (const [k, v] of [...params]) if (!v || (k === "sort" && v === "deal")) params.delete(k);
+    location.search = params.toString();
+  });
+</script>
+{% endblock %}

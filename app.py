@@ -21,6 +21,7 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", 
 
 NAV_ITEMS = [
     {"label": "Charts", "href": "/charts", "icon": "chart"},
+    {"label": "Deals", "href": "/deals", "icon": "percent"},
     {"label": "Discover", "href": "/discover", "icon": "compass"},
     {"label": "Compare", "href": "/compare", "icon": "columns"},
 ]

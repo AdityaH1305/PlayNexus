@@ -120,9 +120,13 @@ def test_art_redirects_to_real_asset(client, monkeypatch):
 
 
 def test_home_renders_without_steam(client, monkeypatch):
-    from services import charts
+    from services import charts, deals
+
+    def down(*a, **k):
+        raise UpstreamError("down")
 
     monkeypatch.setattr(charts, "safe", lambda fn, *a, **k: {"updated": None, "rows": [], "error": True})
+    monkeypatch.setattr(deals, "current_deals", down)
     r = client.get("/")
     assert r.status_code == 200 and b"Is it worth the money?" in r.data
 

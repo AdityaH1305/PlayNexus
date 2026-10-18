@@ -47,6 +47,38 @@
   </div>
 </section>
 
+{% if deals %}
+<section class="wrap section" aria-labelledby="deals-title">
+  <div class="section-head">
+    <h2 id="deals-title">Best deals today</h2>
+    <a href="{{ url_for('pages.deals_page') }}">All deals</a>
+  </div>
+  <div class="card-grid card-grid--6">
+    {% for d in deals %}
+    <a class="gcard" href="{{ url_for('pages.game_page', appid=d.appid) }}">
+      <span class="gcard__art">{{ ui.art(d.appid, d.header, 'header') }}</span>
+      <span class="gcard__title">{{ d.name }}</span>
+      <span class="gcard__meta">
+        <span class="discount">−{{ d.savings }}%</span>
+        <span class="num">{{ d.sale_price|usd }}</span>
+        {% if d.review_pct is not none %}<span class="{{ ui.review_tone(d.review_pct) }}">{{ d.review_pct }}% positive</span>{% endif %}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="wrap section" aria-labelledby="vibes-title">
+  <div class="section-head">
+    <h2 id="vibes-title">Browse by vibe</h2>
+    <a href="{{ url_for('pages.discover_page') }}">Discover</a>
+  </div>
+  <div class="tags tags--lg">
+    {% for v in vibes %}<a class="tag" href="{{ url_for('pages.discover_page', v=v.key) }}">{{ v.label }}</a>{% endfor %}
+  </div>
+</section>
+
 <section class="wrap section" id="recent-section" hidden aria-labelledby="recent-title">
   <div class="section-head">
     <h2 id="recent-title">Recently viewed</h2>

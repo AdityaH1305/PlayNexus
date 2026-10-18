@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Where is Steam cheapest? Regional price index — PlayNexus{% endblock %}
+{% block description %}Steam prices for its most popular paid games in 16 regions, converted to US dollars and compared with the US price.{% endblock %}
+
+{% block content %}
+<div class="wrap page">
+  <header class="page-head">
+    <div>
+      <h1>Where is Steam cheapest?</h1>
+      {% if index %}
+      <p class="lede">We priced {{ index.basket }} of Steam's most popular paid games in 16 regions and converted everything to US dollars at today's rates. Each dot is one game; the number is the median.</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if not index %}
+    {{ ui.empty("The index isn't available right now", "Steam's prices aren't loading. Try again in a few minutes.") }}
+  {% else %}
+  <div class="index" role="table" aria-label="Median price compared with the US, by region">
+    <div class="index__head" role="row">
+      <span role="columnheader">Region</span>
+      <span role="columnheader" class="num">Median vs US</span>
+      <span role="columnheader" class="index__axis hide-sm" aria-hidden="true">
+        <span style="--x: 0">0%</span><span style="--x: {{ index.us_x }}">US price</span><span style="--x: 100">150%</span>
+      </span>
+    </div>
+    {% for row in index.rows %}
+    <div class="index__row" role="row">
+      <span role="cell" class="index__region">
+        {{ ui.region_chip(row.code) }}<span>{{ row.name }}</span>
+        {% if row.currency == 'USD' %}<span class="flag-note flag-note--quiet" title="Steam prices this region in US dollars">USD</span>{% endif %}
+      </span>
+      <span role="cell" class="num index__median {% if row.median_pct < 98 %}pos{% elif row.median_pct > 102 %}neg{% else %}muted{% endif %}">
+        {{ row.median_pct }}%<span class="tiny muted"> of US</span>
+      </span>
+      <span role="cell" class="index__strip hide-sm" aria-hidden="true">
+        <span class="index__iqr" style="--a: {{ row.q1_x }}; --b: {{ row.q3_x }}"></span>
+        <span class="index__us" style="--x: {{ index.us_x }}"></span>
+        {% for x in row.dots %}<span class="index__dot" style="--x: {{ x }}"></span>{% endfor %}
+        <span class="index__mid" style="--x: {{ row.median_x }}"></span>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="small muted notes">The shaded band covers the middle half of games. Prices are converted at mid-market rates ({{ index.fx.source }}). Steam ties purchases to your account's country, so this is a comparison, not a shopping tip.</p>
+
+  {% if index.gaps %}
+  <section class="section" aria-labelledby="gaps-title">
+    <div class="section-head"><h2 id="gaps-title">Biggest regional discounts</h2></div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th scope="col">Game</th><th scope="col">Region</th><th scope="col" class="num">Price vs US</th></tr></thead>
+        <tbody>
+          {% for g in index.gaps %}
+          <tr>
+            <td><a href="{{ url_for('pages.game_page', appid=g.appid) }}">{{ g.name }}</a></td>
+            <td>{{ ui.region_chip(g.code) }} {{ g.region }}</td>
+            <td class="num pos">{{ g.pct }}% of US</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

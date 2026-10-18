@@ -23,6 +23,17 @@ def _fresh_caches():
     clear_caches()
 
 
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """Fail loudly if a test reaches the real internet (mock it instead)."""
+    import socket
+
+    def guard(*args, **kwargs):
+        raise RuntimeError("tests must not make network requests")
+
+    monkeypatch.setattr(socket.socket, "connect", guard)
+
+
 @pytest.fixture
 def fixed_fx(monkeypatch):
     from services import fx

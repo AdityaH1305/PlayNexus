@@ -31,6 +31,8 @@ def names() -> dict[int, str]:
 
 def top_names(item_tags: list[tuple[int, int]], n: int = 3) -> list[str]:
     """Names of the *n* strongest tags in a store item's ``tags`` list."""
+    if not item_tags:
+        return []
     lookup = names()
     ordered = sorted(item_tags, key=lambda t: -t[1])
     return [lookup[tid] for tid, _ in ordered if tid in lookup][:n]

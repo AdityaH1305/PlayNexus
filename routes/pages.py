@@ -5,7 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from routes.caching import cdn_cache
-from services import charts
+from services import charts, deals, price_index
 from services import game as game_service
 from services import search
 from services.http import UpstreamError
@@ -24,7 +24,13 @@ def _warm_search():
 @cdn_cache(s_maxage=900)
 def home():
     playing = charts.safe(charts.playing_now, limit=30)
-    return render_template("index.html", playing=playing["rows"][:8])
+    try:
+        # Well-reviewed games only, so the home page never pushes a dud.
+        best = deals.filter_deals(deals.current_deals(), min_rating=80)[:6]
+    except UpstreamError:
+        best = []
+    vibes = sorted(({"key": k, "label": v["label"]} for k, v in VIBES.items()), key=lambda m: m["label"])
+    return render_template("index.html", playing=playing["rows"][:8], deals=best, vibes=vibes)
 
 
 @bp.route("/game", methods=["POST"])
@@ -91,6 +97,45 @@ def charts_page():
     title, fn = charts.CHARTS[tab]
     data = charts.safe(fn)
     return render_template("charts.html", tab=tab, title=title, tabs=charts.CHARTS, chart=data)
+
+
+def _choice(name: str, allowed: tuple):
+    raw = request.args.get(name, "")
+    return type(allowed[0])(raw) if raw in {str(a) for a in allowed} else None
+
+
+@bp.route("/deals")
+@cdn_cache(s_maxage=1800)
+def deals_page():
+    filters = {
+        "max_price": _choice("max", (5, 10, 20, 40)),
+        "min_rating": _choice("rating", (70, 80, 90)),
+        "min_discount": _choice("discount", (25, 50, 75)),
+    }
+    sort = request.args.get("sort", "deal")
+    if sort not in deals.SORTS:
+        sort = "deal"
+    try:
+        rows = deals.current_deals()
+        error = False
+    except UpstreamError:
+        rows, error = [], True
+    shown = deals.filter_deals(rows, sort=sort, **filters)
+    return render_template(
+        "deals.html", deals=shown, total=len(rows), error=error, sort=sort, sorts=deals.SORTS,
+        args={"max": request.args.get("max", ""), "rating": request.args.get("rating", ""),
+              "discount": request.args.get("discount", "")},
+    )
+
+
+@bp.route("/regions")
+@cdn_cache(s_maxage=6 * 3600, swr=3 * 86400)
+def regions_page():
+    try:
+        index = price_index.compute()
+    except UpstreamError:
+        index = None
+    return render_template("regions.html", index=index)
 
 
 @bp.route("/discover")

@@ -67,11 +67,11 @@ def game_deals(appid: int) -> dict[str, Any] | None:
 
 
 @ttl_cache(ttl=HOUR, fail_ttl=300)
-def steam_deals(page_size: int = 60, sort: str = "Deal Rating") -> list[dict[str, Any]]:
-    """Current Steam sales from CheapShark's deal feed (used by /deals)."""
+def steam_deals(page: int = 0, page_size: int = 60, sort: str = "Deal Rating") -> list[dict[str, Any]]:
+    """One page of current Steam sales from CheapShark's deal feed."""
     data = get_json(
         f"{BASE}/deals",
-        {"storeID": 1, "onSale": 1, "pageSize": page_size, "sortBy": sort},
+        {"storeID": 1, "onSale": 1, "pageNumber": page, "pageSize": page_size, "sortBy": sort},
     ) or []
     out = []
     for d in data:
