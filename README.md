@@ -22,6 +22,7 @@ It runs as a single Flask app on Vercel, with no database and no build step.
 - **Discover**: pick up to three vibes, filter by price, reviews, players, length and Steam Deck, and let it pick one for you.
 - **Compare**: up to four games side by side, best value per row highlighted, shareable links.
 - **My Steam**: paste your profile to see which wishlist games are on sale and worth it; with an API key, library stats, a backlog picker and suggestions.
+- **Prices in your currency** on charts, deals, Discover, Compare, My Steam and the home page, with a region switch in the nav. Deals show your store's price where it has the same sale, otherwise the US one marked USD. Value scores outside game pages use US prices.
 - Search from anywhere with **Ctrl K** (⌘K on Mac) or **/**. Dark and light themes.
 
 ## How the numbers work
@@ -89,7 +90,7 @@ Set these in `.env` locally and in Vercel under Project → Settings → Environ
 | Variable | Needed for |
 |---|---|
 | `STEAM_API_KEY` | Optional. Library tools on My Steam, and rebuilding the games-only search index. Free from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (your Steam account must have spent $5 on the store). Never commit it. |
-| `SITE_URL` | The public address, e.g. `https://your-site.vercel.app`. Used for link previews and the User-Agent we send to APIs. |
+| `SITE_URL` | The public address, e.g. `https://your-site.vercel.app`. Used for link previews, the links in `robots.txt`, the sitemap and JSON-LD (which otherwise use the requested host), and the User-Agent we send to APIs. |
 | `FLASK_DEBUG` | `1` locally for auto-reload. Leave unset in production. |
 | `HTTP_TIMEOUT`, `MAX_WORKERS` | Optional tuning (defaults 6 seconds, 16 threads). |
 
@@ -112,14 +113,22 @@ The site deploys on Vercel straight from GitHub: pushes to `main` go to producti
 
 - Files in `public/` (CSS, JS, images) are served by Vercel's CDN. Their URLs carry the commit hash, so `vercel.json` lets browsers cache them for a year.
 - Pages and API responses send `s-maxage` headers, so the CDN answers most visitors without running Python or calling Steam. My Steam data is sent `private, no-store` and never cached.
+- Because pages are shared by everyone, they're rendered with US prices. For visitors elsewhere, `public/static/js/prices.js` fetches their store's prices from `/api/prices/batch?ids=…&region=…` (up to 100 apps, also CDN-cached) and swaps them in; CSS sets aside room for them first, so nothing shifts.
 - There's no database. Live data is cached in memory per instance, and the snapshots above cover the rest.
+
+### Search engines and analytics
+
+- `/robots.txt` lets crawlers in everywhere except `/api/` and points them to `/sitemap.xml`, which lists the main pages, every game in the discovery pool and this week's top sellers. Both come from `routes/seo.py`, are built from data already in memory (no per-game Steam calls) and are cached for a day.
+- Game pages carry schema.org `VideoGame` JSON-LD. It has no `aggregateRating` on purpose: the reviews are Steam's, and Google doesn't allow third-party ratings marked up as your own.
+- Vercel Web Analytics (free on Hobby, no cookies) is switched on in the Vercel dashboard: Project → Analytics → Enable. Its script tag is only rendered when Vercel's `VERCEL` variable is set, so local runs don't ask for a script that doesn't exist.
 
 ## Project layout
 
 ```
 app.py                  Flask app, template helpers, error pages
 config.py               Settings and the 16 price regions
-routes/                 pages.py (HTML), api.py (JSON), caching.py (CDN headers)
+routes/                 pages.py (HTML), api.py (JSON), seo.py (robots.txt, sitemap),
+                        caching.py (CDN headers)
 services/               steam, pricing, fx, reviews, value_score, game,
                         charts, deals, price_index, cheapshark, search,
                         vibes, pool, discover, recommendations, steam_account

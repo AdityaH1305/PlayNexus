@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import logging
+from datetime import datetime
 from typing import Any
 
 from services import pool, pricing, reviews, steam, tags, value_score, vibes
@@ -155,3 +156,41 @@ def safe_load_game(appid: int) -> dict[str, Any] | None:
         return load_game(appid)
     except UpstreamError:
         return None
+
+
+# Steam writes release dates for people, day or month first.
+RELEASE_FORMATS = ("%b %d, %Y", "%d %b, %Y", "%B %d, %Y", "%d %B, %Y")
+
+
+def release_iso(text: str) -> str | None:
+    """Steam's "Aug 3, 2023" or "3 Aug, 2023" as "2023-08-03"; ``None`` for
+    anything vaguer, like "Q1 2027" or "Coming soon"."""
+    for fmt in RELEASE_FORMATS:
+        try:
+            return datetime.strptime(text.strip(), fmt).date().isoformat()
+        except ValueError:
+            pass
+    return None
+
+
+def structured_data(game: dict[str, Any], url: str) -> dict[str, Any]:
+    """schema.org ``VideoGame`` JSON-LD for the game page.
+
+    Deliberately no ``aggregateRating``: the reviews are Steam's, and Google
+    doesn't allow third-party ratings marked up as the page's own.
+    """
+    meta = game["meta"]
+    optional = {
+        "image": game["header_image"],
+        "genre": meta["genres"],
+        "gamePlatform": meta["platforms"],
+        "publisher": [{"@type": "Organization", "name": name} for name in meta["publishers"]],
+        "datePublished": None if meta["coming_soon"] else release_iso(meta["release"]),
+    }
+    return {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": game["name"],
+        "url": url,
+        **{key: value for key, value in optional.items() if value},
+    }

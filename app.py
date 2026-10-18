@@ -52,9 +52,11 @@ def create_app() -> Flask:
 
     from routes.api import bp as api_bp
     from routes.pages import bp as pages_bp
+    from routes.seo import bp as seo_bp
 
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(seo_bp)
 
     from services import fmt
 
@@ -64,6 +66,7 @@ def create_app() -> Flask:
         art_url=fmt.art_url,
         site_name=Config.SITE_NAME,
         site_url=Config.SITE_URL,
+        vercel_analytics=Config.ON_VERCEL,
         nav_items=NAV_ITEMS,
         config_regions=Config.REGIONS,
     )

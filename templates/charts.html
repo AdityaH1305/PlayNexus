@@ -2,12 +2,16 @@
 {% import "macros.html" as ui %}
 {% block title %}{{ title }} on Steam — PlayNexus{% endblock %}
 {% block description %}{{ title }} on Steam, updated live, with review scores and prices.{% endblock %}
+{# Each tab is its own page in the sitemap, so each is its own canonical URL. #}
+{% block canonical %}{{ url_for('pages.charts_page') if tab == 'playing' else url_for('pages.charts_page', tab=tab) }}{% endblock %}
 
+{# US prices; prices.js swaps in the visitor's own (data-lp). #}
 {% macro price(g) -%}
 {%- if g.is_free -%}<span class="muted">Free</span>
 {%- elif g.price -%}
+  <span class="lp-group" data-lp="{{ g.appid }}" data-lp-usd="{{ '%.2f'|format(g.price.final) }}">
   {%- if g.price.discount -%}<span class="discount">−{{ g.price.discount }}%</span> {% endif -%}
-  <span class="num">{{ g.price.final_formatted }}</span>
+  <span class="num">{{ g.price.final_formatted }}</span></span>
 {%- else -%}<span class="muted">—</span>
 {%- endif -%}
 {%- endmacro %}

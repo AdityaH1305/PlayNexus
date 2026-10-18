@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
   {%- if site_url %}
-  <link rel="canonical" href="{{ site_url }}{{ request.path }}">
+  <link rel="canonical" href="{{ site_url }}{% block canonical %}{{ request.path }}{% endblock %}">
   {%- endif %}
 
   {%- block og %}
@@ -32,8 +32,9 @@
   {% block head %}{% endblock %}
 
   <script>
-    /* Runs before first paint: pick the theme, and catch broken Steam art
-       (even images that fail before our modules load). */
+    /* Runs before first paint: pick the theme, note a known non-US price
+       region (CSS sets aside room for local prices; prices.js swaps them in),
+       and catch broken Steam art (even images that fail before our modules load). */
     (function () {
       var d = document.documentElement, t;
       try { t = localStorage.getItem("playnexus_theme"); } catch (e) {}
@@ -41,6 +42,11 @@
         t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       }
       d.setAttribute("data-theme", t);
+      try {
+        r = JSON.parse(localStorage.getItem("playnexus_region")) ||
+          (JSON.parse(sessionStorage.getItem("playnexus_whereami")) || {}).region;
+      } catch (e) {}
+      if (typeof r === "string" && r !== "US") d.setAttribute("data-region", r);
       document.addEventListener("error", function (e) {
         var img = e.target;
         if (!img || img.tagName !== "IMG" || !img.getAttribute("data-appid")) return;
@@ -61,7 +67,8 @@
       "imports": {
         "pn/core": "{{ asset_url('js/core.js') }}",
         "pn/search": "{{ asset_url('js/search.js') }}",
-        "pn/charts": "{{ asset_url('js/charts.js') }}"
+        "pn/charts": "{{ asset_url('js/charts.js') }}",
+        "pn/prices": "{{ asset_url('js/prices.js') }}"
       }
     }
   </script>
@@ -90,6 +97,16 @@
           {{ ui.icon('search', 'icon--sm') }}<span>Search games</span><kbd data-shortcut-hint>Ctrl K</kbd>
         </button>
         <button class="btn btn--icon btn--quiet nav-search-icon" type="button" data-open-palette aria-label="Search games">{{ ui.icon('search') }}</button>
+        {#- The select sits invisibly over its compact face, so it keeps native keyboard,
+            screen reader and touch behaviour. main.js shows the visitor's region. #}
+        <div class="region-switch" data-region-switch>
+          <select class="region-switch__select" aria-label="Price region">
+            {%- for reg in config_regions %}
+            <option value="{{ reg.code }}">{{ reg.name }}</option>
+            {%- endfor %}
+          </select>
+          <span class="region-switch__face" aria-hidden="true">{{ ui.icon('globe', 'icon--sm') }}<span class="region-switch__code" data-region-code>US</span></span>
+        </div>
         <button class="btn btn--icon btn--quiet" type="button" data-theme-toggle aria-label="Switch theme">
           <span class="theme-icon theme-icon--dark">{{ ui.icon('moon') }}</span>
           <span class="theme-icon theme-icon--light">{{ ui.icon('sun') }}</span>
@@ -131,6 +148,7 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
+  <script type="application/json" id="pn-regions">{{ config_regions|tojson }}</script>
   <script type="module" src="{{ asset_url('js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>

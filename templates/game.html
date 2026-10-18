@@ -19,6 +19,10 @@
 {%- endif %}
 {% endblock %}
 
+{% block head %}
+<script type="application/ld+json">{{ json_ld|tojson }}</script>
+{% endblock %}
+
 {% macro signed_pct(n) -%}
 {%- if n is none -%}—{%- elif n > 0 -%}+{{ '%.0f'|format(n) }}%{%- elif n < 0 -%}−{{ '%.0f'|format(-n) }}%{%- else -%}0%{%- endif -%}
 {%- endmacro %}

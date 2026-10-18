@@ -17,6 +17,8 @@ class Config:
     SITE_URL: str = os.getenv("SITE_URL", "").rstrip("/")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "playnexus-dev")
     DEBUG: bool = os.getenv("FLASK_DEBUG", "0") == "1"
+    # Vercel sets VERCEL=1. Its Web Analytics script only exists there.
+    ON_VERCEL: bool = bool(os.getenv("VERCEL"))
 
     # ── Upstream APIs ─────────────────────────────────────
     STEAM_API_KEY: str = os.getenv("STEAM_API_KEY", "")
