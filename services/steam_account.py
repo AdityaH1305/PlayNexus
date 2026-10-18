@@ -126,13 +126,18 @@ def wishlist(steamid: str, cc: str = "US") -> dict[str, Any]:
     if not items:
         return {"count": 0, "on_sale": 0, "games": []}
     ids = [i["appid"] for i in items][:400]
+    # Value scores use the US price everywhere but the game page, so another
+    # region's wishlist needs the US store as well.
+    us_future = executor.submit(steam.store_items, ids, "US") if cc != "US" else None
     store = steam.store_items(ids, cc)
+    us_store = us_future.result() if us_future else store
     games = []
     for i in items[:400]:
         s = store.get(i["appid"])
         if not s or not s["name"]:
             continue
         price = s["price"]
+        us_price = ((us_store.get(i["appid"]) or {}).get("price") or {}).get("final")
         reliable = s["review_count"] >= 10
         games.append({
             "appid": s["appid"],
@@ -145,7 +150,7 @@ def wishlist(steamid: str, cc: str = "US") -> dict[str, Any]:
             "discount": (price or {}).get("discount", 0),
             "review_pct": s["review_pct"] if reliable else None,
             "review_label": s["review_label"] if reliable else "",
-            "value": _value_for(s["appid"], (price or {}).get("final") if cc == "US" else None, s["is_free"]),
+            "value": _value_for(s["appid"], us_price, s["is_free"]),
             "priority": i["priority"],
             "added": i["added"],
         })

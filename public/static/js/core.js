@@ -223,6 +223,68 @@ export const compareList = {
   },
 };
 
+/* ── Price region ──────────────────────────────────────── */
+
+/** The store regions from config.py ({cc, code, name}), embedded by base.html. */
+export const REGIONS = pageData("pn-regions") || [];
+const REGION_CODES = new Set(REGIONS.map((r) => r.code));
+const EUROZONE = new Set("AT BE HR CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES".split(" "));
+
+export const regionName = (code) => REGIONS.find((r) => r.code === code)?.name || code;
+
+/** Our region code for an ISO country code, if we price it. */
+export function regionFromCountry(cc) {
+  if (!cc) return null;
+  cc = cc.toUpperCase();
+  if (EUROZONE.has(cc)) return "EU";
+  return REGION_CODES.has(cc) && cc !== "EU" ? cc : null;
+}
+
+let detected;
+
+async function detectCountry() {
+  try {
+    const cached = sessionStorage.getItem("playnexus_whereami");
+    const where = cached ? JSON.parse(cached) : await getJSON("/api/whereami");
+    if (!cached) sessionStorage.setItem("playnexus_whereami", JSON.stringify(where));
+    if (where.region && REGION_CODES.has(where.region)) return where.region;
+  } catch {
+    /* fall through to the browser language */
+  }
+  const m = (navigator.language || "").match(/-([A-Za-z]{2})$/);
+  return regionFromCountry(m && m[1]);
+}
+
+/** The visitor's region code: the one they picked, else their country's
+    (Vercel's IP header), else their browser language's; null if none fits. */
+export async function detectRegion() {
+  const saved = store.read(KEYS.region, null);
+  if (saved && REGION_CODES.has(saved)) return saved;
+  detected ||= detectCountry();
+  return detected;
+}
+
+/** Remember the visitor's pick (null forgets it) and tell the page. */
+export function setRegion(code) {
+  store.write(KEYS.region, code || null);
+  window.dispatchEvent(new CustomEvent("pn:region", { detail: code || null }));
+}
+
+/** Call fn(code) with the visitor's region, then again whenever they pick
+    one, here or in another tab. */
+export function watchRegion(fn) {
+  let picked = false;
+  const changed = (code) => {
+    picked = true;
+    fn(code);
+  };
+  window.addEventListener("pn:region", (e) => changed(e.detail));
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEYS.region) changed(store.read(KEYS.region, null));
+  });
+  detectRegion().then((code) => picked || fn(code));
+}
+
 /* ── Toasts ────────────────────────────────────────────── */
 
 export function toast(message) {

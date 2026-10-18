@@ -201,6 +201,52 @@
   white-space: nowrap;
 }
 
+/* ── Local prices (prices.js) ─────────────────────────── */
+
+/* Wraps a price without adding a box, so US pages look exactly as before. */
+.lp-group {
+  display: contents;
+}
+
+/* data-region is on <html> for visitors outside the US. */
+:root:not([data-region]) .region-only,
+:root[data-region] .us-only {
+  display: none;
+}
+
+/* Room for local prices, set aside before they arrive so nothing moves when
+   they do. --lp-ch is about the longest price in that store, in characters
+   ("₹ 2,999" is 7, "Rp 329 000" 10, "Mex$ 1,299.00" 13). */
+:root[data-region] {
+  --lp-ch: 10;
+}
+
+:root[data-region="EU"],
+:root[data-region="GB"],
+:root[data-region="IN"],
+:root[data-region="JP"] {
+  --lp-ch: 7;
+}
+
+:root[data-region="MX"] {
+  --lp-ch: 13;
+}
+
+:root[data-region] .price-cell .lp-group {
+  display: inline-block;
+  min-width: calc((var(--lp-ch) + 5.5) * 1ch); /* the price and a discount badge */
+}
+
+:root[data-region] [data-lp] > .num {
+  min-width: calc(var(--lp-ch) * 1ch);
+}
+
+/* Badge, sale price and regular price; at least room for a US one marked USD. */
+:root[data-region] .deal-price {
+  justify-content: flex-end;
+  min-width: max(20.5ch, calc(var(--lp-ch) * 1.87ch + 6ch));
+}
+
 @media (max-width: 640px) {
   .chart-game {
     min-width: 0;

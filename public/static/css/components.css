@@ -148,6 +148,52 @@
   flex: 1;
 }
 
+/* Price region: a native select laid invisibly over a quiet, button-like face. */
+.region-switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.region-switch__select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 1rem; /* 16px, so iOS doesn't zoom when it opens */
+}
+
+.region-switch__face {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.region-switch__code {
+  min-width: 2ch;
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  font-weight: 500;
+}
+
+.region-switch:hover .region-switch__face {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.region-switch__select:focus-visible + .region-switch__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .btn.nav-toggle,
 .btn.nav-search-icon {
   display: none;

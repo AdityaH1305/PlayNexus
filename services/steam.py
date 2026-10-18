@@ -46,10 +46,11 @@ def appdetails(appid: int, cc: str = "us") -> dict[str, Any] | None:
 _price_store = new_store(maxsize=16384)
 
 
-def price_overview(appids: Iterable[int], cc: str) -> dict[int, dict | None]:
+def price_overview(appids: Iterable[int], cc: str, *, failed: set[int] | None = None) -> dict[int, dict | None]:
     """``price_overview`` for many apps in one store, batched 50 per call.
 
-    Values are ``None`` when the app isn't sold there (or is free).
+    Values are ``None`` when the app isn't sold there (or is free), and also
+    when Steam didn't answer; pass a set as *failed* to collect those app IDs.
     """
     ids = [int(a) for a in appids]
 
@@ -67,7 +68,10 @@ def price_overview(appids: Iterable[int], cc: str) -> dict[int, dict | None]:
                 found[(appid, cc)] = po
         return found
 
-    res = cached_batch(_price_store, [(a, cc) for a in ids], fetch, ttl=3 * HOUR)
+    missed: set = set()
+    res = cached_batch(_price_store, [(a, cc) for a in ids], fetch, ttl=3 * HOUR, failed=missed)
+    if failed is not None:
+        failed.update(k[0] for k in missed)
     return {k[0]: v for k, v in res.items()}
 
 

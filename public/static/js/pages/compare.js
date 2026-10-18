@@ -12,14 +12,17 @@ import {
   getJSON,
   html,
   icon,
+  regionName,
   reviewTone,
   setHTML,
   toast,
+  watchRegion,
 } from "pn/core";
 import { Combobox } from "pn/search";
 
 const body = $("#compare-body");
-const cache = new Map(); // appid -> bundle | "error"
+const cache = new Map(); // appid -> promise of bundle | "error"
+let region = null; // the visitor's price region; null for the US
 
 function idsFromUrl() {
   const raw = new URLSearchParams(location.search).get("ids");
@@ -79,12 +82,25 @@ body.addEventListener("click", (e) => {
   render();
 });
 
+/* The visitor's store's row from a bundle's regional prices, if it sells the game. */
+const localRow = (g) => (region ? g.prices?.regions?.find((r) => r.code === region && r.available) : null);
+
 /* Rows: label, how to read a value, how to show it, and which way is better. */
 const ROWS = [
   {
-    label: "Price (US)",
-    value: (g) => (g.is_free ? 0 : g.usd_price),
-    show: (g) => (g.is_free ? "Free" : g.usd_price == null ? "Not for sale" : fmtUSD(g.usd_price)),
+    label: () => (region ? `Price (${regionName(region)})` : "Price (US)"),
+    // Elsewhere, only games the visitor's store sells can be the best price.
+    value: (g) => (g.is_free ? 0 : region ? (localRow(g)?.usd ?? null) : g.usd_price),
+    show: (g) => {
+      if (g.is_free) return "Free";
+      const r = localRow(g);
+      if (r) {
+        return html`${r.discount ? html`<span class="discount">−${r.discount}%</span> ` : ""}<span class="num">${r.final_formatted}</span>`;
+      }
+      if (g.usd_price == null) return "Not for sale";
+      if (!region) return fmtUSD(g.usd_price);
+      return html`${fmtUSD(g.usd_price)} <span class="flag-note flag-note--quiet" title="Steam has no ${regionName(region)} price for this game, so this is the US price.">USD</span>`;
+    },
     better: "low",
   },
   {
@@ -179,7 +195,7 @@ function table(games) {
       <tbody>
         ${ROWS.map((row) => {
           const best = bestIndexes(row, games);
-          return html`<tr><th scope="row">${row.label}</th>
+          return html`<tr><th scope="row">${typeof row.label === "function" ? row.label() : row.label}</th>
             ${games.map((g, i) => html`<td class="${best.has(i) ? "is-best" : ""}">${row.show(g)}${best.has(i) ? html`<span class="best-mark">Best</span>` : ""}</td>`)}
           </tr>`;
         })}
@@ -187,14 +203,9 @@ function table(games) {
     </table></div>`;
 }
 
-async function load(appid) {
-  if (!cache.has(appid)) {
-    try {
-      cache.set(appid, await getJSON(`/api/game/${appid}`, { ttl: 600_000 }));
-    } catch {
-      cache.set(appid, "error");
-    }
-  }
+function load(appid) {
+  // The promise is kept, so renders that overlap share one request.
+  if (!cache.has(appid)) cache.set(appid, getJSON(`/api/game/${appid}`, { ttl: 600_000 }).catch(() => "error"));
   return cache.get(appid);
 }
 
@@ -229,8 +240,15 @@ async function render() {
   setHTML(
     body,
     html`${failed.length ? html`<p class="notice">${icon("info")}Couldn't load ${failed.map((g) => g.name).join(", ")}. Steam may be busy; try again shortly.</p>` : ""}
-      ${games.length >= 2 ? table(games) : ""}`,
+      ${games.length >= 2 ? table(games) : ""}
+      ${games.length >= 2 && region
+        ? html`<p class="small muted notes">Prices are from the ${regionName(region)} Steam store. Value score, cost per hour and “Great value at” use US prices; each game's own page scores it at your price.</p>`
+        : ""}`,
   );
 }
 
 render();
+watchRegion((code) => {
+  region = code && code !== "US" ? code : null;
+  render();
+});

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, abort, jsonify, redirect, request
 
 from config import Config
-from routes.caching import cdn_cache, no_store
+from routes.caching import cdn_cache, mark_degraded, no_store
 from services import charts, cheapshark, discover, steam_account
 from services import game as game_service
-from services import pricing, steam
+from services import fx, pricing, steam
 from services.http import UpstreamError, executor
 from services.recommendations import get_recommendations
 from services.search import search
@@ -188,6 +190,42 @@ def api_prices(appid: int):
     if not details:
         abort(404)
     return jsonify(pricing.regional_prices(appid, is_free=bool(details.get("is_free"))))
+
+
+MAX_BATCH_IDS = 100  # two Steam calls; public/static/js/prices.js sends no more
+_APPID_RE = re.compile(r"[1-9][0-9]{0,9}")
+
+
+@bp.route("/prices/batch")
+@cdn_cache(s_maxage=3600)
+def api_prices_batch():
+    """One region's prices for many apps: ``?ids=570,730&region=IN``.
+
+    List pages are cached for everyone, so they show US prices and swap these
+    in for visitors elsewhere.  ``prices`` maps app IDs to Steam's formatted
+    local price, the discount and the US-dollar equivalent, or to null when
+    that store doesn't sell the app.  Apps Steam didn't answer for are left
+    out, and the response is then only cached for a minute.
+    """
+    region = Config.region(request.args.get("region", ""))
+    if not region:
+        codes = ", ".join(r["code"] for r in Config.REGIONS)
+        return jsonify({"error": f"Unknown region. Use one of {codes}."}), 400
+    parts = [p.strip() for p in request.args.get("ids", "").split(",") if p.strip()]
+    if not parts or not all(_APPID_RE.fullmatch(p) for p in parts):
+        return jsonify({"error": "Pass ids as comma-separated Steam app IDs."}), 400
+    ids = list(dict.fromkeys(int(p) for p in parts))
+    if len(ids) > MAX_BATCH_IDS:
+        return jsonify({"error": f"At most {MAX_BATCH_IDS} app IDs per request."}), 400
+
+    prices, failed = pricing.local_prices(ids, region["cc"])
+    if failed:
+        mark_degraded()
+    return jsonify({
+        "region": region["code"],
+        "prices": {str(a): prices[a] for a in ids if a in prices},
+        "fx": fx.meta(),
+    })
 
 
 @bp.route("/recommendations/<int:appid>")

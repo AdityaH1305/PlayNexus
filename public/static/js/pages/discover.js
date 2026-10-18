@@ -1,4 +1,5 @@
 import { $, $$, KEYS, artImg, html, pageData, setHTML, store, toast } from "pn/core";
+import { priceText } from "pn/prices";
 
 const MAX_VIBES = 3;
 const form = $("[data-discover-form]");
@@ -89,7 +90,7 @@ function pick() {
   if (g.vibes.length) reasons.push(`${g.fits_all ? "Fits" : "Leans"} ${g.vibes.map((v) => v.label.toLowerCase()).join(" and ")}`);
   if (g.review_pct != null) reasons.push(`${g.review_pct}% positive`);
   if (g.hours) reasons.push(`about ${Math.round(g.hours)} hours`);
-  const price = g.is_free ? "Free" : g.price ? g.price.final_formatted : "";
+  const price = g.is_free ? "Free" : g.price ? priceText(g.appid, g.price.final_formatted) : "";
 
   setHTML(
     picker,

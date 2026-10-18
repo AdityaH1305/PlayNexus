@@ -58,7 +58,7 @@
           <th scope="col">Game</th>
           <th scope="col" class="hide-sm">Reviews</th>
           <th scope="col" class="num">Price</th>
-          <th scope="col" class="num hide-sm" title="Value score at the sale price, where we know the game's typical playtime">Value</th>
+          <th scope="col" class="num hide-sm" title="Value score at the US sale price, where we know the game's typical playtime">Value</th>
           <th scope="col" class="num">Deal</th>
         </tr>
       </thead>
@@ -76,7 +76,8 @@
           </td>
           <td class="hide-sm">{% if d.review_pct is not none %}{{ ui.review(d.review_label, d.review_pct, d.review_count) }}<div class="tiny muted num">{{ d.review_count|compact }} reviews</div>{% else %}<span class="muted small">Too few reviews</span>{% endif %}</td>
           <td class="num nowrap">
-            <a class="deal-price" href="{{ d.url }}" target="_blank" rel="noopener sponsored" title="Buy on Steam">
+            <a class="deal-price" href="{{ d.url }}" target="_blank" rel="noopener sponsored" title="Buy on Steam"
+               data-lp="{{ d.appid }}" data-lp-usd="{{ '%.2f'|format(d.sale_price) }}" data-lp-mode="sale-row">
               <span class="discount">−{{ d.savings }}%</span>
               <span class="deal-price__now">{{ d.sale_price|usd }}</span>
               <s class="muted small">{{ d.normal_price|usd }}</s>
@@ -97,7 +98,8 @@
       </tbody>
     </table>
   </div>
-  <p class="small muted notes">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the sale price, shown for games whose typical playtime we've measured.</p>
+  <p class="small muted notes us-only">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the sale price, shown for games whose typical playtime we've measured.</p>
+  <p class="small muted notes region-only">Sales come from CheapShark's US Steam feed. Where the <span data-region-name></span> store has the same sale, you see its price; otherwise the US one, marked USD. Price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the US sale price, shown for games whose typical playtime we've measured. The price filter uses US prices too.</p>
   {% endif %}
 </div>
 {% endblock %}

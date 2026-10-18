@@ -3,6 +3,7 @@
 One ``price_overview`` call per store region (run in parallel), converted to
 US dollars with live exchange rates.  Display strings are Steam's own
 (``final_formatted``), so every currency is formatted the way its store does.
+List pages use :func:`local_prices` instead: many apps, one region.
 """
 
 from __future__ import annotations
@@ -13,16 +14,55 @@ from typing import Any
 
 from config import Config
 from services import fx, steam
-from services.http import UpstreamError, executor
+from services.http import UpstreamError, chunks, executor
 
 _ERROR = object()
 
 
+def _price_fields(po: dict[str, Any]) -> dict[str, Any]:
+    """Steam's ``price_overview`` in our units, with the US-dollar equivalent."""
+    final = po["final"] / 100
+    usd = fx.to_usd(final, po["currency"])
+    return {
+        "currency": po["currency"],
+        "final": final,
+        "initial": po["initial"] / 100,
+        "discount": int(po.get("discount_percent") or 0),
+        "final_formatted": po.get("final_formatted") or f"{final:,.2f} {po['currency']}",
+        "initial_formatted": po.get("initial_formatted") or "",
+        "usd": round(usd, 2) if usd is not None else None,
+    }
+
+
+def local_prices(appids: list[int], cc: str) -> tuple[dict[int, dict | None], set[int]]:
+    """One store's prices for many apps, 50 per Steam call, run in parallel.
+
+    Returns ``(prices, failed)``: *prices* maps each app to its price fields,
+    or to ``None`` if that store doesn't sell it (or it's free).  Apps Steam
+    didn't answer for are left out of *prices* and listed in *failed*.
+    """
+
+    def batch(ids: list[int]) -> tuple[dict[int, dict | None], set[int]]:
+        missed: set[int] = set()
+        return steam.price_overview(ids, cc, failed=missed), missed
+
+    prices: dict[int, dict | None] = {}
+    failed: set[int] = set()
+    for future in [executor.submit(batch, ids) for ids in chunks(list(dict.fromkeys(appids)), 50)]:
+        found, missed = future.result()
+        failed |= missed
+        prices.update({a: _price_fields(po) if po else None for a, po in found.items() if a not in missed})
+    return prices, failed
+
+
 def _region_price(appid: int, cc: str) -> Any:
+    """Steam's price in one store: ``None`` if it isn't sold there, ``_ERROR`` if Steam didn't answer."""
+    missed: set[int] = set()
     try:
-        return steam.price_overview([appid], cc).get(appid)
+        po = steam.price_overview([appid], cc, failed=missed).get(appid)
     except UpstreamError:
         return _ERROR
+    return _ERROR if appid in missed else po
 
 
 def submit_regional(appid: int) -> dict[str, Future]:
@@ -57,18 +97,9 @@ def assemble_regional(futures: dict[str, Future] | None, *, is_free: bool = Fals
         po = futures[region["cc"]].result()
         row: dict[str, Any] = {**region, "available": False, "error": po is _ERROR}
         if po and po is not _ERROR:
-            final = po["final"] / 100
-            initial = po["initial"] / 100
-            usd = fx.to_usd(final, po["currency"])
             row.update(
                 available=True,
-                currency=po["currency"],
-                final=final,
-                initial=initial,
-                discount=int(po.get("discount_percent") or 0),
-                final_formatted=po.get("final_formatted") or f"{final:,.2f} {po['currency']}",
-                initial_formatted=po.get("initial_formatted") or "",
-                usd=round(usd, 2) if usd is not None else None,
+                **_price_fields(po),
                 usd_priced=po["currency"] == "USD" and region["cc"] != "us",
             )
         rows.append(row)

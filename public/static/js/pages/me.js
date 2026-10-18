@@ -1,8 +1,30 @@
-import { $, KEYS, artImg, fmtInt, fmtUSD, html, icon, pageData, reviewTone, safeUrl, setHTML, store, toast } from "pn/core";
+import {
+  $,
+  KEYS,
+  artImg,
+  debounce,
+  detectRegion,
+  fmtInt,
+  fmtUSD,
+  html,
+  icon,
+  pageData,
+  regionName,
+  reviewTone,
+  safeUrl,
+  setHTML,
+  store,
+  toast,
+  watchRegion,
+} from "pn/core";
 
 const form = $("[data-me-form]");
 const statusEl = $("[data-me-status]");
 const page = pageData() || {};
+const asRegion = (code) => (code && code !== "US" ? code : null);
+let region = null; // the visitor's price region; null for the US
+let wishFor = null; // SteamID whose wishlist is showing
+let wishRun = 0;
 
 function status(msg, tone = "") {
   setHTML(statusEl, msg ? html`<p class="notice ${tone}">${icon("info")}${msg}</p>` : "");
@@ -41,6 +63,8 @@ function renderProfile(p) {
 document.addEventListener("click", (e) => {
   if (!e.target.closest("[data-forget]")) return;
   store.write(KEYS.steam, null);
+  wishFor = null;
+  wishRun += 1;
   ["[data-me-profile]", "[data-me-wishlist]", "[data-me-library]"].forEach((s) => ($(s).hidden = true));
   history.replaceState(null, "", location.pathname);
   form.q.value = "";
@@ -88,9 +112,34 @@ function renderWishlist(w) {
       <tbody>${rows(first)}</tbody>
       <tbody data-wish-rest hidden>${rows(rest)}</tbody>
     </table></div>
-    ${rest.length ? html`<button class="btn btn--sm" type="button" data-wish-more>Show all ${w.count}</button>` : ""}`,
+    ${rest.length ? html`<button class="btn btn--sm" type="button" data-wish-more>Show all ${w.count}</button>` : ""}
+    ${region
+      ? html`<p class="small muted notes">Prices are from the ${regionName(region)} Steam store. Value scores use US prices; a game's own page scores it at your price.</p>`
+      : ""}`,
   );
 }
+
+function loadWishlist(steamid) {
+  const run = ++wishRun;
+  wishFor = steamid;
+  api(`/api/me/${steamid}/wishlist?region=${encodeURIComponent(region || "US")}`)
+    .then((w) => run === wishRun && renderWishlist(w))
+    .catch((err) => {
+      if (run !== wishRun) return;
+      $("[data-me-wishlist]").hidden = false;
+      setHTML($("[data-wish-body]"), html`<p class="text-2">${err.message}</p>`);
+    });
+}
+
+// Picking another region in the nav reloads the wishlist in its prices
+// (once the picker settles: arrowing through it fires a change per key).
+watchRegion(
+  debounce((code) => {
+    if (asRegion(code) === region) return;
+    region = asRegion(code);
+    if (wishFor) loadWishlist(wishFor);
+  }, 250),
+);
 
 document.addEventListener("click", (e) => {
   const more = e.target.closest("[data-wish-more]");
@@ -188,13 +237,8 @@ async function lookUp(q, { remember = false } = {}) {
   renderProfile(profile);
   status("");
 
-  const region = store.read(KEYS.region, null) || "US";
-  api(`/api/me/${profile.steamid}/wishlist?region=${encodeURIComponent(region)}`)
-    .then(renderWishlist)
-    .catch((err) => {
-      $("[data-me-wishlist]").hidden = false;
-      setHTML($("[data-wish-body]"), html`<p class="text-2">${err.message}</p>`);
-    });
+  region = asRegion(await detectRegion());
+  loadWishlist(profile.steamid);
 
   if (page.library_available) {
     $("[data-me-library]").hidden = false;

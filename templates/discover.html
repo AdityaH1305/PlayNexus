@@ -83,7 +83,7 @@
       <div class="dcard__body">
         <h3 class="dcard__title"><a href="{{ url_for('pages.game_page', appid=g.appid) }}">{{ g.name }}</a></h3>
         <p class="dcard__meta">
-          {%- if g.is_free %}<span>Free</span>{% elif g.price %}{% if g.price.discount %}<span class="discount">−{{ g.price.discount }}%</span> {% endif %}<span class="num">{{ g.price.final_formatted }}</span>{% endif -%}
+          {%- if g.is_free %}<span>Free</span>{% elif g.price %}<span class="lp-group" data-lp="{{ g.appid }}" data-lp-usd="{{ '%.2f'|format(g.price.final) }}">{% if g.price.discount %}<span class="discount">−{{ g.price.discount }}%</span> {% endif %}<span class="num">{{ g.price.final_formatted }}</span></span>{% endif -%}
           {%- if g.review_pct is not none %}<span class="{{ ui.review_tone(g.review_pct) }}">{{ g.review_pct }}% positive</span>{% endif -%}
           {%- if g.hours %}<span>~{{ g.hours|hours }}</span>{% endif -%}
         </p>
@@ -95,7 +95,7 @@
       </div>
       <div class="dcard__side">
         {% if g.value and g.value.score is not none %}
-        <span class="dcard__value" title="{{ g.value.label }} at this price"><span class="num">{{ g.value.score }}</span><span class="tiny muted">value</span></span>
+        <span class="dcard__value" title="{{ g.value.label }} at the US price"><span class="num">{{ g.value.score }}</span><span class="tiny muted">value</span></span>
         {% endif %}
         <button class="btn btn--icon btn--sm btn--quiet" type="button" data-hide="{{ g.appid }}" aria-label="Not interested in {{ g.name }}" title="Not interested">{{ ui.icon('eye-off', 'icon--sm') }}</button>
       </div>
@@ -103,6 +103,7 @@
     {% endfor %}
   </div>
   <p class="small muted notes" data-hidden-note hidden></p>
+  <p class="small muted notes region-only">Prices are from the <span data-region-name></span> Steam store. Value scores and the price filter use US prices; a game's own page scores it at your price.</p>
   {% endif %}
 </div>
 <script type="application/json" id="page-data">{{ {"results": result.results, "picked": picked}|tojson }}</script>

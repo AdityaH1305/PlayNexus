@@ -220,12 +220,14 @@ def cached_batch(
     keys: Iterable[Hashable],
     fetch: Callable[[list[Hashable]], dict[Hashable, Any]],
     ttl: float,
+    failed: set | None = None,
 ) -> dict[Hashable, Any]:
     """Look up many keys at once, fetching only the misses in one call.
 
     *fetch* receives the missing keys and returns a mapping for those it found;
     keys it omits are cached as ``None`` (a definite "no data").  If *fetch*
-    raises :class:`UpstreamError`, misses come back as ``None`` uncached.
+    raises :class:`UpstreamError`, misses come back as ``None`` uncached, and
+    are added to *failed* if you pass a set.
     """
     result: dict[Hashable, Any] = {}
     missing: list[Hashable] = []
@@ -241,6 +243,8 @@ def cached_batch(
         except UpstreamError as exc:
             log.warning("batch fetch failed for %d keys: %s", len(missing), exc)
             fetched = None
+            if failed is not None:
+                failed.update(missing)
         for k in missing:
             if fetched is None:
                 result[k] = None

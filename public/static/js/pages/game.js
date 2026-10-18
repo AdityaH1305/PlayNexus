@@ -1,7 +1,6 @@
 import {
   $,
   $$,
-  KEYS,
   artImg,
   compareList,
   favorites,
@@ -13,8 +12,9 @@ import {
   recent,
   safeUrl,
   setHTML,
-  store,
+  setRegion,
   toast,
+  watchRegion,
 } from "pn/core";
 import { reviewHistory } from "pn/charts";
 
@@ -55,37 +55,13 @@ explainBtn?.addEventListener("click", () => {
 
 /* ── Your region ───────────────────────────────────────── */
 
-const EUROZONE = new Set("AT BE HR CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES".split(" "));
 const select = $("[data-region-select]");
-const regionCodes = new Set(data.regions.map((r) => r.code));
 const usRow = data.regions.find((r) => r.code === "US");
 const base = {
   score: data.value.score,
   label: data.value.label,
   cph: data.value.breakdown?.cost_per_hour,
 };
-
-function regionFromCountry(cc) {
-  if (!cc) return null;
-  cc = cc.toUpperCase();
-  if (EUROZONE.has(cc)) return "EU";
-  return regionCodes.has(cc) ? cc : null;
-}
-
-async function detectRegion() {
-  const saved = store.read(KEYS.region, null);
-  if (saved && regionCodes.has(saved)) return saved;
-  try {
-    const cached = sessionStorage.getItem("playnexus_whereami");
-    const where = cached ? JSON.parse(cached) : await getJSON("/api/whereami");
-    if (!cached) sessionStorage.setItem("playnexus_whereami", JSON.stringify(where));
-    if (where.region && regionCodes.has(where.region)) return where.region;
-  } catch {
-    /* fall through to the browser language */
-  }
-  const m = (navigator.language || "").match(/-([A-Za-z]{2})$/);
-  return regionFromCountry(m && m[1]);
-}
 
 function setText(sel, text) {
   const el = $(sel);
@@ -122,11 +98,9 @@ function applyRegion(code) {
   meter.setAttribute("aria-label", `Value score ${v.score} out of 100`);
 }
 
-select?.addEventListener("change", () => {
-  store.write(KEYS.region, select.value || null);
-  applyRegion(select.value || null);
-});
-detectRegion().then(applyRegion);
+// Shares the saved region with the switch in the site nav (see main.js).
+select?.addEventListener("change", () => setRegion(select.value || null));
+watchRegion(applyRegion);
 
 /* ── Live players ──────────────────────────────────────── */
 

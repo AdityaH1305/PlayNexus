@@ -59,8 +59,10 @@
       <span class="gcard__art">{{ ui.art(d.appid, d.header, 'header') }}</span>
       <span class="gcard__title">{{ d.name }}</span>
       <span class="gcard__meta">
-        <span class="discount">−{{ d.savings }}%</span>
-        <span class="num">{{ d.sale_price|usd }}</span>
+        <span class="lp-group" data-lp="{{ d.appid }}" data-lp-usd="{{ '%.2f'|format(d.sale_price) }}" data-lp-mode="sale">
+          <span class="discount">−{{ d.savings }}%</span>
+          <span class="num">{{ d.sale_price|usd }}</span>
+        </span>
         {% if d.review_pct is not none %}<span class="{{ ui.review_tone(d.review_pct) }}">{{ d.review_pct }}% positive</span>{% endif %}
       </span>
     </a>
