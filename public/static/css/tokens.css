@@ -14,7 +14,7 @@
   --line-soft: #2a2925;
   --text: #ede9e1;
   --text-2: #b5afa4;
-  --muted: #8a8478;
+  --muted: #908a7e;
 
   /* The one accent. Fills use --accent with --accent-ink text on top. */
   --accent: #e9a23b;
@@ -77,10 +77,12 @@
   --text: #1c1a16;
   --text-2: #4b463d;
   --muted: #706a5e;
+  --accent: #bd7a1c;
+  --accent-hover: #c8862a;
   --accent-text: #8a5410;
   --accent-wash: rgba(185, 116, 26, 0.13);
-  --pos: #4f7a35;
-  --mixed: #8a7442;
+  --pos: #4a7332;
+  --mixed: #7e6a3c;
   --neg: #b4472c;
   --pos-wash: rgba(79, 122, 53, 0.12);
   --neg-wash: rgba(180, 71, 44, 0.1);
@@ -99,10 +101,12 @@
     --text: #1c1a16;
     --text-2: #4b463d;
     --muted: #706a5e;
+    --accent: #bd7a1c;
+    --accent-hover: #c8862a;
     --accent-text: #8a5410;
     --accent-wash: rgba(185, 116, 26, 0.13);
-    --pos: #4f7a35;
-    --mixed: #8a7442;
+    --pos: #4a7332;
+    --mixed: #7e6a3c;
     --neg: #b4472c;
     --pos-wash: rgba(79, 122, 53, 0.12);
     --neg-wash: rgba(180, 71, 44, 0.1);
