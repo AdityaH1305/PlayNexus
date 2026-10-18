@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -36,6 +37,12 @@ _session.mount("https://", HTTPAdapter(pool_connections=16, pool_maxsize=48))
 executor = ThreadPoolExecutor(max_workers=Config.MAX_WORKERS, thread_name_prefix="upstream")
 
 _RETRY_STATUSES = {429, 500, 502, 503, 504}
+_KEY_RE = re.compile(r"(key=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def redact(text: str) -> str:
+    """Hide API keys that request libraries put in error messages."""
+    return _KEY_RE.sub(r"\1REDACTED", str(text))
 
 
 def get_json(
@@ -61,7 +68,7 @@ def get_json(
                 attempt += 1
                 time.sleep(0.4 * attempt)
                 continue
-            raise UpstreamError(f"{url}: {exc}") from exc
+            raise UpstreamError(f"{url}: {redact(exc)}") from None
 
         if r.status_code in _RETRY_STATUSES and attempt < retries:
             attempt += 1
@@ -72,8 +79,19 @@ def get_json(
             raise UpstreamError(f"{url}: HTTP {r.status_code}")
         try:
             return r.json()
-        except ValueError as exc:
-            raise UpstreamError(f"{url}: invalid JSON") from exc
+        except ValueError:
+            raise UpstreamError(f"{url}: invalid JSON") from None
+
+
+def get_text(url: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> str:
+    """GET *url* and return the body as text (for XML endpoints)."""
+    try:
+        r = _session.get(url, params=params, timeout=timeout or Config.HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise UpstreamError(f"{url}: {redact(exc)}") from None
+    if not r.ok:
+        raise UpstreamError(f"{url}: HTTP {r.status_code}")
+    return r.text
 
 
 def _retry_after(r: requests.Response) -> float | None:

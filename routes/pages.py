@@ -161,6 +161,16 @@ def compare_page():
     return render_template("compare.html")
 
 
+@bp.route("/me")
+@cdn_cache(s_maxage=86400)
+def me_page():
+    """Profile tools. The page is a static shell; the data comes from /api/me/…
+    (never cached), so this is safe to cache for everyone."""
+    from services import steam_account
+
+    return render_template("me.html", library_available=steam_account.has_key())
+
+
 # Old addresses, kept working.
 @bp.route("/trending")
 def trending_redirect():

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}My Steam: wishlist sales and backlog — PlayNexus{% endblock %}
+{% block description %}See which games on your Steam wishlist are on sale and worth it, what's unplayed in your library, and what to play next.{% endblock %}
+
+{% block content %}
+<div class="wrap page">
+  <header class="page-head">
+    <div>
+      <h1>My Steam</h1>
+      <p class="lede">See which wishlist games are on sale and worth it, what's sitting unplayed in your library, and what to play next. Nothing you enter is stored on our servers.</p>
+    </div>
+  </header>
+
+  <form class="me-form" data-me-form>
+    <label class="field me-form__field">
+      <span class="field__label">Your Steam profile</span>
+      <input class="input me-form__input" name="q" type="text" autocomplete="off" spellcheck="false" required
+             placeholder="steamcommunity.com/id/yourname" aria-describedby="me-help">
+    </label>
+    <button class="btn btn--primary me-form__go" type="submit">Look up</button>
+    <label class="check me-form__remember"><input type="checkbox" name="remember"> <span>Remember on this device</span></label>
+    <p class="small muted me-form__help" id="me-help">Paste the link to your Steam profile, your custom URL name, or your 17-digit SteamID. Your wishlist and game details need to be public: in Steam, go to your profile, then Edit profile, then Privacy settings.</p>
+  </form>
+
+  <div class="me-status" data-me-status aria-live="polite"></div>
+
+  <section class="me-profile" data-me-profile hidden></section>
+
+  <section class="section" data-me-wishlist hidden aria-labelledby="wish-title">
+    <div class="section-head">
+      <h2 id="wish-title">Wishlist</h2>
+      <span class="small muted" data-wish-summary></span>
+    </div>
+    <div data-wish-body></div>
+  </section>
+
+  <section class="section" data-me-library hidden aria-labelledby="lib-title">
+    <div class="section-head"><h2 id="lib-title">Library</h2></div>
+    {% if not library_available %}
+    <p class="notice">{{ ui.icon('info') }}Library stats need the site's Steam Web API key, which hasn't been added yet.</p>
+    {% endif %}
+    <div data-lib-body></div>
+  </section>
+</div>
+<script type="application/json" id="page-data">{{ {"library_available": library_available}|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ asset_url('js/pages/me.js') }}"></script>
+{% endblock %}

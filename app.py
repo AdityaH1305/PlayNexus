@@ -24,6 +24,7 @@ NAV_ITEMS = [
     {"label": "Deals", "href": "/deals", "icon": "percent"},
     {"label": "Discover", "href": "/discover", "icon": "compass"},
     {"label": "Compare", "href": "/compare", "icon": "columns"},
+    {"label": "My Steam", "href": "/me", "icon": "library"},
 ]
 
 

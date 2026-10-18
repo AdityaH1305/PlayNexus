@@ -6,7 +6,7 @@ from flask import Blueprint, abort, jsonify, redirect, request
 
 from config import Config
 from routes.caching import cdn_cache, no_store
-from services import charts, cheapshark, discover
+from services import charts, cheapshark, discover, steam_account
 from services import game as game_service
 from services import pricing, steam
 from services.http import UpstreamError, executor
@@ -121,6 +121,52 @@ def api_whereami():
     """Suggest a price region from the visitor's country (Vercel sets the header)."""
     country = (request.headers.get("X-Vercel-IP-Country") or "").upper() or None
     return jsonify({"country": country, "region": Config.region_for_country(country) if country else None})
+
+
+@bp.route("/me/resolve")
+@no_store
+def api_me_resolve():
+    try:
+        profile = steam_account.resolve(request.args.get("q", "")[:200])
+    except steam_account.ProfileError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except UpstreamError:
+        return jsonify({"error": "Steam isn't answering right now. Try again in a moment."}), 503
+    return jsonify({**profile, "library_available": steam_account.has_key()})
+
+
+def _valid_steamid(steamid: str) -> None:
+    if not steam_account.STEAMID_RE.match(steamid):
+        abort(404)
+
+
+@bp.route("/me/<steamid>/wishlist")
+@no_store
+def api_me_wishlist(steamid: str):
+    _valid_steamid(steamid)
+    region = Config.region(request.args.get("region", "US")) or Config.region("US")
+    try:
+        return jsonify(steam_account.wishlist(steamid, region["cc"].upper()))
+    except UpstreamError:
+        return jsonify({"error": "Couldn't load the wishlist from Steam just now."}), 503
+
+
+@bp.route("/me/<steamid>/library")
+@no_store
+def api_me_library(steamid: str):
+    _valid_steamid(steamid)
+    try:
+        lib = steam_account.library(steamid)
+    except steam_account.ProfileError as exc:
+        return jsonify({"error": str(exc), "reason": "no_key"}), 501
+    except UpstreamError:
+        return jsonify({"error": "Couldn't load the library from Steam just now."}), 503
+    if lib is None:
+        return jsonify({
+            "error": "This profile's game details are private.",
+            "reason": "private",
+        }), 403
+    return jsonify(lib)
 
 
 def _or_none(fn, *args):
