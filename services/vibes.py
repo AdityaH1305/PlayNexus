@@ -19,13 +19,10 @@ Enhancements:
 
 from __future__ import annotations
 
-import json
-import time
-from functools import lru_cache
 from typing import Any
 
-from config import Config
-from services.steam_api import get_appdetails, get_reviews_page
+from services import steam
+from services.http import UpstreamError
 
 # ── Vibe definitions ──────────────────────────────────────
 VIBES: dict[str, dict[str, str]] = {
@@ -351,7 +348,9 @@ def score_vibes_for_app(appid: str) -> dict[str, Any]:
     This is the FULL scoring used on the game detail page.
     It calls the Steam API (cached).
     """
-    data = get_appdetails(appid, cc="us")
+    data = steam.appdetails(int(appid), "us")
+    if not data:
+        raise UpstreamError(f"no store details for {appid}")
 
     genre_texts: list[str] = []
     tag_texts: list[str] = []
@@ -365,7 +364,10 @@ def score_vibes_for_app(appid: str) -> dict[str, Any]:
     name = data.get("name", "")
 
     # Review snippets (cheap — already cached)
-    reviews = get_reviews_page(appid, "recent")
+    try:
+        reviews = steam.reviews_page(int(appid), "recent")
+    except UpstreamError:
+        reviews = []
     snippets = [(rv.get("review") or "")[:300] for rv in reviews[:40]]
 
     # Build pools

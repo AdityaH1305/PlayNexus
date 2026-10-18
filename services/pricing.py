@@ -1,126 +1,98 @@
-"""Regional pricing service.
+"""Regional pricing.
 
-Rewritten to use the shared ``get_appdetails()`` cache instead of making
-raw HTTP calls — eliminates 10 duplicate API requests per game page load.
+One ``price_overview`` call per store region (run in parallel), converted to
+US dollars with live exchange rates.  Display strings are Steam's own
+(``final_formatted``), so every currency is formatted the way its store does.
 """
 
 from __future__ import annotations
 
+import statistics
+from concurrent.futures import Future
 from typing import Any
 
 from config import Config
-from services.steam_api import get_appdetails, executor
+from services import fx, steam
+from services.http import UpstreamError, executor
+
+_ERROR = object()
 
 
-def _extract_price_for_region(
-    appid: str, cc: str
-) -> tuple[dict | None, str | None, str | None]:
-    """Extract price from the *cached* appdetails response for one region."""
-    game_data = get_appdetails(appid, cc=cc)
-    if not game_data:
-        return None, None, None
+def _region_price(appid: int, cc: str) -> Any:
+    try:
+        return steam.price_overview([appid], cc).get(appid)
+    except UpstreamError:
+        return _ERROR
 
-    price_info = game_data.get("price_overview")
 
-    if not price_info:
-        is_free = game_data.get("is_free", False)
-        if is_free:
-            currency_price: dict[str, Any] = {
-                "region": cc.upper(),
-                "currency": "USD",
-                "initial": 0,
-                "final": 0,
-                "discount": 0,
-                "is_free": True,
-            }
-        else:
-            return None, None, None
-    else:
-        currency_price: dict[str, Any] = {
-            "region": cc.upper(),
-            "currency": price_info["currency"],
-            "initial": price_info["initial"] / 100,
-            "final": price_info["final"] / 100,
-            "discount": price_info["discount_percent"],
+def submit_regional(appid: int) -> dict[str, Future]:
+    """Start one price lookup per region; pass the result to :func:`assemble_regional`.
+
+    Split in two so callers can overlap these requests with others without a
+    pool thread ever blocking on another pool task.
+    """
+    return {r["cc"]: executor.submit(_region_price, appid, r["cc"]) for r in Config.REGIONS}
+
+
+def regional_prices(appid: int, *, is_free: bool = False) -> dict[str, Any]:
+    """Prices for *appid* in every configured region (see :func:`assemble_regional`)."""
+    return assemble_regional(None if is_free else submit_regional(appid), is_free=is_free)
+
+
+def assemble_regional(futures: dict[str, Future] | None, *, is_free: bool = False) -> dict[str, Any]:
+    """Collect regional prices.
+
+    Returns ``regions`` (one row per region, in config order), ``us_usd``,
+    ``reference_usd`` (US price, or the median when there's no US price),
+    ``cheapest`` / ``priciest`` region codes, and exchange-rate metadata.
+    """
+    if is_free or futures is None:
+        return {
+            "is_free": True, "available": True, "regions": [], "us_usd": 0.0,
+            "reference_usd": 0.0, "cheapest": None, "priciest": None, "fx": fx.meta(),
         }
 
-    cover_url = (
-        game_data.get("header_image")
-        or f"https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
-    )
-    game_name = game_data.get("name", "Unknown Game")
-    return currency_price, game_name, cover_url
+    rows: list[dict[str, Any]] = []
+    for region in Config.REGIONS:
+        po = futures[region["cc"]].result()
+        row: dict[str, Any] = {**region, "available": False, "error": po is _ERROR}
+        if po and po is not _ERROR:
+            final = po["final"] / 100
+            initial = po["initial"] / 100
+            usd = fx.to_usd(final, po["currency"])
+            row.update(
+                available=True,
+                currency=po["currency"],
+                final=final,
+                initial=initial,
+                discount=int(po.get("discount_percent") or 0),
+                final_formatted=po.get("final_formatted") or f"{final:,.2f} {po['currency']}",
+                initial_formatted=po.get("initial_formatted") or "",
+                usd=round(usd, 2) if usd is not None else None,
+                usd_priced=po["currency"] == "USD" and region["cc"] != "us",
+            )
+        rows.append(row)
 
+    priced = [r for r in rows if r.get("usd")]
+    us_usd = next((r["usd"] for r in priced if r["cc"] == "us"), None)
+    reference = us_usd if us_usd else (statistics.median(r["usd"] for r in priced) if priced else None)
 
-def fetch_all_prices(appid: str) -> dict[str, Any]:
-    """Fetch prices across all configured regions in parallel.
+    for r in priced:
+        r["vs_us_pct"] = round((r["usd"] - us_usd) / us_usd * 100, 1) if us_usd else None
 
-    Now uses the shared cached ``get_appdetails()`` layer, so repeated
-    calls (from vibes, recommendations, etc.) hit cache instead of the
-    network.
-    """
-    regions = Config.REGIONS
-    futures = executor.map(
-        lambda cc: _extract_price_for_region(appid, cc), regions
-    )
-
-    all_prices: list[dict] = []
-    game_name = "Unknown Game"
-    cover_url: str | None = None
-
-    for currency_price, g_name, c_url in futures:
-        if not currency_price:
-            continue
-        all_prices.append(currency_price)
-        if game_name == "Unknown Game" and g_name:
-            game_name = g_name
-        if cover_url is None and c_url:
-            cover_url = c_url
-
-    # ── USD conversion & cheapest detection ───────────────
-    cheapest: dict | None = None
-    cheapest_usd = float("inf")
-
-    for p in all_prices:
-        rate = Config.USD_RATES.get(p["currency"], 1.0)
-        usd_equiv = p["final"] * rate
-        p["usd_equivalent"] = round(usd_equiv, 2)
-
-        if usd_equiv > 0 and usd_equiv < cheapest_usd:
-            cheapest_usd = usd_equiv
-            cheapest = p
-
-    # Mark cheapest & compute % diff vs US price
-    us_price_usd: float | None = None
-    for p in all_prices:
-        if p["region"] == "US":
-            us_price_usd = p["usd_equivalent"]
-            break
-
-    for p in all_prices:
-        p["is_cheapest"] = (cheapest is not None and p["region"] == cheapest["region"])
-        if us_price_usd and us_price_usd > 0:
-            diff = ((p["usd_equivalent"] - us_price_usd) / us_price_usd) * 100
-            p["vs_usd_pct"] = round(diff, 1)
-        else:
-            p["vs_usd_pct"] = 0.0
-
-    if not cover_url:
-        cover_url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
+    cheapest = min(priced, key=lambda r: r["usd"]) if len(priced) > 1 else None
+    priciest = max(priced, key=lambda r: r["usd"]) if len(priced) > 1 else None
+    for r in rows:
+        r["is_cheapest"] = cheapest is not None and r is cheapest
+        r["is_priciest"] = priciest is not None and r is priciest
 
     return {
-        "game_name": game_name,
-        "cover_url": cover_url,
-        "prices": all_prices,
-        "cheapest": cheapest,
+        "is_free": False,
+        "available": bool(priced),
+        "regions": rows,
+        "us_usd": us_usd,
+        "reference_usd": reference,
+        "cheapest": cheapest["code"] if cheapest else None,
+        "priciest": priciest["code"] if priciest else None,
+        "fx": fx.meta(),
     }
-
-
-def get_usd_price(prices: list[dict]) -> float | None:
-    """Extract USD final price from a prices list."""
-    for p in prices:
-        if p.get("currency") == "USD":
-            return p["final"]
-    if prices:
-        return prices[0]["final"]
-    return None

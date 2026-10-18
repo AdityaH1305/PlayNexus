@@ -234,7 +234,7 @@ function initSearchAutocomplete(inputEl, hiddenEl, listEl, clearEl, formEl) {
     if (inflightAbort) inflightAbort.abort();
     inflightAbort = new AbortController();
     showHint('Searching…');
-    fetch(`/autocomplete?q=${encodeURIComponent(q)}`, { signal: inflightAbort.signal })
+    fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: inflightAbort.signal })
       .then(r => r.json())
       .then(items => { currentItems = items || []; renderList(q, currentItems); })
       .catch(err => { if (err.name !== 'AbortError') showHint('Something went wrong'); })

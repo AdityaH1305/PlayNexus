@@ -17,7 +17,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from services.steam_api import get_appdetails
+from services import steam
+from services.http import UpstreamError
 
 
 # ══════════════════════════════════════════════════════════
@@ -214,7 +215,10 @@ def get_recommendations(appid: str, limit: int = 8) -> list[dict[str, Any]]:
     The only API call is for the source game's appdetails (cached).
     """
     appid = str(appid)
-    data = get_appdetails(appid, cc="us")
+    try:
+        data = steam.appdetails(int(appid), "us")
+    except UpstreamError:
+        return []
     if not data:
         return []
 

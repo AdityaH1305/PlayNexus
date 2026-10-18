@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{{ name }} — SteamDB Clone{% endblock %}
+{% block title %}{{ game.name }} — PlayNexus{% endblock %}
 
 {% block content %}
+{% set name = game.name %}{% set appid = game.appid %}{% set stats = game.reviews %}
+{% set value_score = game.value.score %}{% set value_label = game.value.label %}{% set value_debug = game.value.breakdown %}
+{% set vibe_info = game.vibes %}{% set usd_price = game.usd_price %}{% set store_url = game.store_url %}
+{% set cover_url = game.header_image %}
 <div class="wrap wrap--game">
   <!-- HERO BANNER -->
   <section class="hero hero--compact">
@@ -20,7 +24,7 @@
           <span id="favIcon">🤍</span>
         </button>
         <button class="btn btn-ghost btn-sm"
-                onclick="addToCompare('{{ appid }}', '{{ name|e }}')"
+                onclick='addToCompare({{ appid|tojson }}, {{ name|tojson|forceescape }})'
                 title="Add to compare">
           🆚 Compare
         </button>
@@ -46,7 +50,7 @@
         <div class="value-card value-card--compact">
           <div class="value-top">
             <div class="v-badge v-badge--sm">
-              <span class="v-score">{{ value_score }}</span>
+              <span class="v-score">{{ value_score if value_score is not none else '—' }}</span>
               <span>Value</span>
             </div>
             <div class="v-label">{{ value_label }}</div>
@@ -57,23 +61,23 @@
             <div class="v-bar-row">
               <span class="v-bar-label">Playtime</span>
               <div class="v-bar-track">
-                <div class="v-bar-fill playtime" style="width: {{ value_debug.playtime_pct }}%"></div>
+                <div class="v-bar-fill playtime" style="width: {{ value_debug.playtime_pts }}%"></div>
               </div>
-              <span class="v-bar-val">{{ value_debug.playtime_pct }}%</span>
+              <span class="v-bar-val">{{ value_debug.playtime_pts }}%</span>
             </div>
             <div class="v-bar-row">
               <span class="v-bar-label">Positivity</span>
               <div class="v-bar-track">
-                <div class="v-bar-fill positivity" style="width: {{ value_debug.positivity_pct }}%"></div>
+                <div class="v-bar-fill positivity" style="width: {{ value_debug.positivity_pts }}%"></div>
               </div>
-              <span class="v-bar-val">{{ value_debug.positivity_pct }}%</span>
+              <span class="v-bar-val">{{ value_debug.positivity_pts }}%</span>
             </div>
             <div class="v-bar-row">
               <span class="v-bar-label">Confidence</span>
               <div class="v-bar-track">
-                <div class="v-bar-fill confidence" style="width: {{ value_debug.confidence_pct }}%"></div>
+                <div class="v-bar-fill confidence" style="width: {{ value_debug.confidence_pts }}%"></div>
               </div>
-              <span class="v-bar-val">{{ value_debug.confidence_pct }}%</span>
+              <span class="v-bar-val">{{ value_debug.confidence_pts }}%</span>
             </div>
           </div>
 
@@ -89,7 +93,7 @@
             </div>
             <div class="v-chip">
               <div class="label">Price</div>
-              <div><strong>${{ '%.2f' % usd_price if usd_price else '—' }}</strong></div>
+              <div><strong>{% if game.is_free %}Free{% elif usd_price %}${{ '%.2f' % usd_price }}{% else %}—{% endif %}</strong></div>
             </div>
           </div>
 
@@ -113,7 +117,7 @@
               <div class="trend-label">Trend</div>
               {% set diff = recent_pct - overall_pct %}
               <div class="trend-val {% if diff > 2 %}positive{% elif diff < -2 %}negative{% else %}neutral{% endif %}">
-                {% if diff > 0 %}↑+{{ diff }}%{% elif diff < 0 %}↓{{ diff }}%{% else %}→ Same{% endif %}
+                {% if diff > 0 %}+{{ diff }} pts{% elif diff < 0 %}{{ diff }} pts{% else %}Same{% endif %}
               </div>
             </div>
           </div>
@@ -142,48 +146,33 @@
             <div>Discount</div>
           </div>
 
-          {% for p in all_prices %}
+          {% if game.is_free %}
+          <div class="price-row"><div class="region-cell"><span>Every region</span></div><div class="price-cell"><span class="free-tag">Free to play</span></div></div>
+          {% endif %}
+          {% for p in game.prices.regions %}
           <div class="price-row {% if p.is_cheapest %}cheapest{% endif %}">
             <div class="region-cell">
-              <span class="flag">{{ get_flag(p.region) }}</span>
-              <span>{{ get_region_name(p.region) }}</span>
+              <span class="flag" style="font-size:12px;font-weight:700;">{{ p.code }}</span>
+              <span>{{ p.name }}</span>
               {% if p.is_cheapest %}<span class="badge badge-green" style="font-size:10px;">Cheapest</span>{% endif %}
             </div>
-
             <div class="price-cell">
-              {% if p.final == 0 %}
-                <span class="free-tag">Free to Play</span>
+              {% if not p.available %}
+                <span style="color:var(--muted);">{{ "Couldn't load" if p.error else "Not sold" }}</span>
               {% else %}
-                {% if p.discount and p.discount > 0 %}
-                  <span class="strike">{{ get_symbol(p.currency) }}{{ '%.2f' % p.initial }}</span>
-                {% endif %}
-                <strong>{{ get_symbol(p.currency) }}{{ '%.2f' % p.final }}</strong>
+                {% if p.discount and p.initial_formatted %}<span class="strike">{{ p.initial_formatted }}</span>{% endif %}
+                <strong>{{ p.final_formatted }}</strong>
               {% endif %}
             </div>
-
             <div class="hide-mobile">{{ p.currency or '—' }}</div>
-
             <div class="hide-mobile">
-              {% if p.vs_usd_pct is defined %}
-                {% if p.vs_usd_pct < -1 %}
-                  <span class="vs-usd cheaper">{{ '%.1f' % p.vs_usd_pct }}%</span>
-                {% elif p.vs_usd_pct > 1 %}
-                  <span class="vs-usd pricier">+{{ '%.1f' % p.vs_usd_pct }}%</span>
-                {% else %}
-                  <span class="vs-usd same">≈ same</span>
-                {% endif %}
-              {% else %}
-                —
-              {% endif %}
+              {% if p.vs_us_pct is not none and p.vs_us_pct is defined %}
+                {% if p.vs_us_pct < -1 %}<span class="vs-usd cheaper">{{ '%.1f' % p.vs_us_pct }}%</span>
+                {% elif p.vs_us_pct > 1 %}<span class="vs-usd pricier">+{{ '%.1f' % p.vs_us_pct }}%</span>
+                {% else %}<span class="vs-usd same">≈ same</span>{% endif %}
+              {% else %}—{% endif %}
             </div>
-
-            <div>
-              {% if p.discount and p.discount > 0 %}
-                <span class="badge">-{{ p.discount }}%</span>
-              {% else %}
-                —
-              {% endif %}
-            </div>
+            <div>{% if p.discount %}<span class="badge">-{{ p.discount }}%</span>{% else %}—{% endif %}</div>
           </div>
           {% endfor %}
         </div>
@@ -211,20 +200,21 @@
 {% block scripts %}
 <script>
   // Track recently viewed
-  addRecentlyViewed('{{ appid }}', '{{ name|e }}', '{{ cover_url }}');
+  const GAME = {{ {"appid": game.appid, "name": game.name, "cover": game.header_image}|tojson }};
+  addRecentlyViewed(GAME.appid, GAME.name, GAME.cover);
 
   // Favorite button state
   const favBtn = document.getElementById('favBtn');
   const favIcon = document.getElementById('favIcon');
-  if (isFavorite('{{ appid }}')) favIcon.textContent = '❤️';
+  if (isFavorite(GAME.appid)) favIcon.textContent = '❤️';
 
   function toggleFav() {
-    const active = toggleFavorite('{{ appid }}', '{{ name|e }}', '{{ cover_url }}');
+    const active = toggleFavorite(GAME.appid, GAME.name, GAME.cover);
     favIcon.textContent = active ? '❤️' : '🤍';
   }
 
   // Lazy load recommendations — compact vertical cards
-  cachedFetch('/api/recommendations/{{ appid }}')
+  cachedFetch('/api/recommendations/' + GAME.appid)
     .then(items => {
       const container = document.getElementById('recs-container');
       if (!items.length) {
