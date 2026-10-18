@@ -12,10 +12,12 @@ def test_unknown_price_is_not_scored_as_free():
     assert breakdown["cost_per_hour"] is None
 
 
-def test_free_games_get_the_original_floor():
-    score, _, _ = compute_value_score(0.0, LOVED_LONG, is_free=True)
-    pos_norm = (0.95 - 0.60) / 0.40
-    assert score >= round(100 * (0.60 + 0.30 * pos_norm + 0.10 * 1.0))
+def test_free_games_are_scored_on_how_much_people_like_them():
+    loved, label, _ = compute_value_score(0.0, LOVED_LONG, is_free=True)
+    assert loved >= 85 and label == "Excellent value"
+    mixed = {**LOVED_LONG, "positivity": 0.58, "total_reviews": 34000}
+    score, label, _ = compute_value_score(0.0, mixed, is_free=True)
+    assert score < 40 and label == "Poor value"  # Mixed reviews aren't great value just for being free
 
 
 def test_score_falls_as_price_rises():

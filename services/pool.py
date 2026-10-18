@@ -85,6 +85,16 @@ def vector(item_tags, idf: dict[int, float]) -> dict[int, float]:
     return {tid: (w / top) * idf.get(tid, default) for tid, w in pairs}
 
 
+# Tags we never show as a reason and never use to suggest a game to someone
+# who wasn't looking at one like it.
+ADULT_TAGS = frozenset({"Sexual Content", "Nudity", "NSFW", "Hentai"})
+
+
+def is_adult(g: dict[str, Any]) -> bool:
+    """Strongly tagged as sexual content (in its top five tags)."""
+    return any(name in ADULT_TAGS for name in g["tag_names"][:5])
+
+
 def games() -> list[dict[str, Any]]:
     return _get()["games"]
 

@@ -42,6 +42,8 @@ def discover(
 
     ranked = []
     for g in pool.games():
+        if pool.is_adult(g):
+            continue
         if players and players not in g["players"]:
             continue
         if deck and g["deck"] != 3:

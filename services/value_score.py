@@ -5,7 +5,8 @@
           + 10 × confidence from review volume
 
 Playtime is the typical playtime of people who reviewed the game.  Free
-games get a floor so a well-liked free game always reads as good value.
+games can't be overpaid for, so their playtime part comes from how positive
+their reviews are instead (none at 50 %, full from 90 %).
 """
 
 from __future__ import annotations
@@ -63,13 +64,17 @@ def compute_value_score(
     if usd_price is None and not is_free:
         return None, label_for(None), _breakdown(hours, 0.0, pos_norm, conf, None, False)
 
-    # Prices under $1 (and free games) are treated as $1 to avoid dividing by zero.
     price = 0.0 if is_free else float(usd_price)
-    hpd_norm = _hpd_norm(hours, max(price, 1.0))
+    if is_free:
+        # You can't overpay for a free game, so its value is how good it is:
+        # the playtime part scales with how positive reviews are (none at 50 %,
+        # all of it from 90 %). A loved free game is excellent value; a
+        # mixed one isn't.
+        hpd_norm = max(0.0, min(1.0, (positivity - 0.50) / 0.40))
+    else:
+        # Prices under $1 are treated as $1 to avoid dividing by tiny numbers.
+        hpd_norm = _hpd_norm(hours, max(price, 1.0))
     raw = W_PLAYTIME * hpd_norm + W_POSITIVITY * pos_norm + W_CONFIDENCE * conf
-    if is_free and positivity > 0.5:
-        # Free games are good value by definition, if people like them.
-        raw = max(raw, 0.60 + 0.30 * pos_norm + 0.10 * conf)
     score = int(round(max(0.0, min(100.0, 100.0 * raw))))
     return score, label_for(score), _breakdown(hours, hpd_norm, pos_norm, conf, price, is_free)
 

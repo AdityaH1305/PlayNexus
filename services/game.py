@@ -11,7 +11,7 @@ import html
 import logging
 from typing import Any
 
-from services import pricing, reviews, steam, tags, value_score, vibes
+from services import pool, pricing, reviews, steam, tags, value_score, vibes
 from services.http import UpstreamError, executor
 
 log = logging.getLogger(__name__)
@@ -65,6 +65,22 @@ def load_game(appid: int) -> dict[str, Any] | None:
     prices = pricing.assemble_regional(price_futures, is_free=is_free)
     item = item_future.result()
 
+    # Steam's review endpoints are the first to rate-limit. Fall back to the
+    # review numbers in the store item and the pool's measured playtime, and
+    # never mistake a failed lookup for "no reviews".
+    degraded = (not stats["available"]) or item is None or any(r.get("error") for r in prices["regions"])
+    if not stats["available"] and item and item["review_count"]:
+        stats.update(
+            available=True,
+            positivity=(item["review_pct"] or 0) / 100,
+            total_reviews=item["review_count"],
+            review_label=item["review_label"],
+        )
+    known = pool.get(appid)
+    if known and pool.has_hours(known) and not (stats["p50_all"] or stats["p50_recent"]):
+        stats.update({k: v for k, v in known["hours"].items()})
+    enough_data = stats["available"] and (is_free or stats["p50_all"] or stats["p50_recent"] or stats["p75_recent"])
+
     try:
         scores = vibes.score_tags(item["tags"]) if item and item["tags"] else {}
         vibe_info = {"scores": {k: v["score"] for k, v in scores.items()}, "top": vibes.top_vibes(scores)}
@@ -74,16 +90,18 @@ def load_game(appid: int) -> dict[str, Any] | None:
 
     usd = 0.0 if is_free else prices["reference_usd"]
     score, label, breakdown = value_score.compute_value_score(usd, stats, is_free=is_free)
+    if not enough_data and score is not None:
+        score, label = None, "Not enough data"
 
     worth_it = None
-    if not is_free and stats["total_reviews"]:
+    if score is not None and not is_free and stats["total_reviews"]:
         worth_it = {
             "great": value_score.worth_it_price(stats, 70),
             "good": value_score.worth_it_price(stats, 55),
         }
 
     by_region = {}
-    for row in prices["regions"]:
+    for row in prices["regions"] if score is not None else []:
         if row.get("usd"):
             s, lbl, b = value_score.compute_value_score(row["usd"], stats)
             by_region[row["code"]] = {"score": s, "label": lbl, "cost_per_hour": b["cost_per_hour"]}
@@ -92,6 +110,7 @@ def load_game(appid: int) -> dict[str, Any] | None:
     return {
         "appid": appid,
         "name": details.get("name") or (item or {}).get("name") or f"App {appid}",
+        "degraded": degraded,
         "details": details,
         "meta": meta,
         "is_free": is_free,

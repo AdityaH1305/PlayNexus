@@ -16,22 +16,24 @@ from services.search import _normalize
 MIN_SIMILARITY = 0.25
 
 
-def _source_vector(appid: int) -> dict[int, float] | None:
+def _source(appid: int) -> tuple[dict[int, float] | None, bool]:
+    """The source game's tag vector, and whether it's adult-tagged itself."""
     g = pool.get(appid)
     if g:
-        return g["vec"]
+        return g["vec"], pool.is_adult(g)
     try:
         item = steam.store_items([appid]).get(appid)
     except UpstreamError:
-        return None
+        return None, False
     if not item or not item["tags"]:
-        return None
-    return pool.vector(item["tags"], pool.idf())
+        return None, False
+    top = [pool.tag_name(t) for t, _ in sorted(item["tags"], key=lambda t: -t[1])[:5]]
+    return pool.vector(item["tags"], pool.idf()), any(n in pool.ADULT_TAGS for n in top)
 
 
 def get_recommendations(appid: int | str, limit: int = 8) -> list[dict[str, Any]]:
     appid = int(appid)
-    vec = _source_vector(appid)
+    vec, source_adult = _source(appid)
     if not vec:
         return []
     norm = sum(w * w for w in vec.values()) ** 0.5 or 1.0
@@ -39,6 +41,8 @@ def get_recommendations(appid: int | str, limit: int = 8) -> list[dict[str, Any]
     scored = []
     for g in pool.games():
         if g["appid"] == appid:
+            continue
+        if pool.is_adult(g) and not source_adult:
             continue
         shared = vec.keys() & g["vec"].keys()
         if not shared:
@@ -60,7 +64,10 @@ def get_recommendations(appid: int | str, limit: int = 8) -> list[dict[str, Any]
         if any(norm.startswith(p) or p.startswith(norm) for p in picked):
             continue
         picked.append(norm)
-        top_shared = sorted(shared, key=lambda t: -(vec[t] * g["vec"][t]))[:3]
+        top_shared = [
+            t for t in sorted(shared, key=lambda t: -(vec[t] * g["vec"][t]))
+            if pool.tag_name(t) not in pool.ADULT_TAGS
+        ][:3]
         out.append({
             "appid": g["appid"],
             "name": g["name"],

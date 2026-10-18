@@ -57,6 +57,7 @@ def make_game(**overrides):
     game = {
         "appid": 1086940,
         "name": "Baldur's Gate 3",
+        "degraded": False,
         "details": {"name": "Baldur's Gate 3", "is_free": False},
         "is_free": False,
         "coming_soon": False,

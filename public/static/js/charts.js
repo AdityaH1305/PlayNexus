@@ -32,7 +32,7 @@ export function reviewHistory(el, data, { months = 48 } = {}) {
   const scale = plotH / (maxUp + maxDown);
   const base = pad.t + maxUp * scale;
   const slot = (W - pad.l - pad.r) / pts.length;
-  const bw = Math.max(1, slot * 0.7);
+  const bw = Math.max(1, Math.min(slot * 0.7, 22)); // short histories shouldn't turn into slabs
 
   const parts = [];
   pts.forEach((p, i) => {

@@ -39,7 +39,10 @@
           {%- if m.release %} · {% if m.coming_soon %}Coming {{ m.release }}{% else %}Released {{ m.release }}{% endif %}{% endif -%}
         </p>
         <ul class="facts">
-          <li>{{ ui.review(game.review_label, (r.positivity * 100) if r.total_reviews >= 10 else none, r.total_reviews) }}{% if r.total_reviews >= 10 %} <span class="muted small num">{{ r.total_reviews|compact }}</span>{% endif %}</li>
+          <li>
+            {%- if not r.available %}<span class="muted">Reviews unavailable right now</span>
+            {%- else %}{{ ui.review(game.review_label, (r.positivity * 100) if r.total_reviews >= 10 else none, r.total_reviews) }}{% if r.total_reviews >= 10 %} <span class="muted small num">{{ r.total_reviews|compact }}</span>{% endif %}{% endif -%}
+          </li>
           <li class="fact-live" data-live hidden><span class="live-dot" aria-hidden="true"></span><span class="num" data-live-count></span> playing now<span class="muted" data-live-rank></span></li>
           {% if game.deck_label %}<li><span class="deck deck--{{ game.deck }}">Steam Deck {{ game.deck_label }}</span></li>{% endif %}
           {% if m.metacritic %}<li class="small">Metacritic <span class="num">{{ m.metacritic }}</span></li>{% endif %}
@@ -64,7 +67,11 @@
           </div>
           <div class="panel__body">
             {% if v.score is none %}
-              <p class="text-2">{% if game.coming_soon %}No price yet, so no value score. Check back when it's out.{% else %}This game isn't for sale on Steam right now, so there's no value score.{% endif %}</p>
+              <p class="text-2">
+                {%- if game.coming_soon and not game.prices.available %}No price yet, so no value score. Check back when it's out.
+                {%- elif not game.is_free and not game.prices.available %}This game isn't for sale on Steam right now, so there's no value score.
+                {%- else %}Steam didn't send enough review data to score this just now. Try again in a few minutes.{% endif -%}
+              </p>
             {% else %}
             <div class="value__top">
               <p class="value__score num" data-v-score>{{ v.score }}</p>
@@ -99,7 +106,7 @@
             {% endif %}
             <div class="value__explain" id="value-explain" hidden>
               <div class="breakdown">
-                {% for label, pts, max in [('Hours of play per dollar', b.playtime_pts, 55), ('How positive reviews are', b.positivity_pts, 35), ('How many reviews there are', b.confidence_pts, 10)] %}
+                {% for label, pts, max in [('Free: credit from reviews' if game.is_free else 'Hours of play per dollar', b.playtime_pts, 55), ('How positive reviews are', b.positivity_pts, 35), ('How many reviews there are', b.confidence_pts, 10)] %}
                 <div class="breakdown__row">
                   <span class="breakdown__label">{{ label }}</span>
                   <span class="breakdown__bar"><span style="width: {{ (pts / max * 100)|round(1) }}%"></span></span>
@@ -107,7 +114,7 @@
                 </div>
                 {% endfor %}
               </div>
-              <p class="small text-2">The score adds up three things. Hours of play per dollar is worth up to 55 points, on a log scale so a 200-hour game isn't treated as twice as good as a 100-hour one. How far reviews sit above 60% positive is worth up to 35. The number of reviews is worth up to 10, so a handful of glowing reviews can't carry a game. Playtime is the typical playtime of people who reviewed it.</p>
+              <p class="small text-2">The score adds up three things. Hours of play per dollar is worth up to 55 points, on a log scale so a 200-hour game isn't treated as twice as good as a 100-hour one. How far reviews sit above 60% positive is worth up to 35. The number of reviews is worth up to 10, so a handful of glowing reviews can't carry a game. Playtime is the typical playtime of people who reviewed it.{% if game.is_free %} You can't overpay for a free game, so its first 55 points come from how positive reviews are instead: none at 50%, all of them from 90%.{% endif %}</p>
             </div>
             {% endif %}
           </div>

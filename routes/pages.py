@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
-from routes.caching import cdn_cache
+from routes.caching import cdn_cache, mark_degraded
 from services import charts, deals, discover, price_index, vibes
 from services import game as game_service
 from services import search
@@ -28,6 +28,8 @@ def home():
         best = deals.filter_deals(deals.current_deals(), min_rating=80)[:6]
     except UpstreamError:
         best = []
+    if playing.get("error") or not best:
+        mark_degraded()
     return render_template("index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list())
 
 
@@ -60,6 +62,8 @@ def game_page(appid: int):
         abort(503)
     if game is None:
         abort(404)
+    if game["degraded"]:
+        mark_degraded()
 
     # Regional table: cheapest first, then regions without a price.
     regions = game["prices"]["regions"]
@@ -94,6 +98,8 @@ def charts_page():
         tab = "playing"
     title, fn = charts.CHARTS[tab]
     data = charts.safe(fn)
+    if data.get("error"):
+        mark_degraded()
     return render_template("charts.html", tab=tab, title=title, tabs=charts.CHARTS, chart=data)
 
 
@@ -118,6 +124,7 @@ def deals_page():
         error = False
     except UpstreamError:
         rows, error = [], True
+        mark_degraded()
     shown = deals.filter_deals(rows, sort=sort, **filters)
     return render_template(
         "deals.html", deals=shown, total=len(rows), error=error, sort=sort, sorts=deals.SORTS,
@@ -133,6 +140,7 @@ def regions_page():
         index = price_index.compute()
     except UpstreamError:
         index = None
+        mark_degraded()
     return render_template("regions.html", index=index)
 
 

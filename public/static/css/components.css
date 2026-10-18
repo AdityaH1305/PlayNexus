@@ -724,6 +724,7 @@ a.tag:hover {
 }
 
 .grow__title {
+  display: block;
   font-weight: 600;
   line-height: 1.3;
   overflow: hidden;
@@ -732,6 +733,7 @@ a.tag:hover {
 }
 
 .grow__meta {
+  display: block;
   color: var(--text-2);
   font-size: var(--fs-13);
   overflow: hidden;
