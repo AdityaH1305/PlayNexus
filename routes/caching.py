@@ -23,7 +23,7 @@ def cdn_cache(s_maxage: int, swr: int = 86400, error_s_maxage: int = 60):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             resp = make_response(fn(*args, **kwargs))
-            if resp.status_code == 200:
+            if resp.status_code in (200, 301, 302, 308):
                 resp.headers["Cache-Control"] = (
                     f"public, max-age=0, s-maxage={s_maxage}, stale-while-revalidate={swr}"
                 )

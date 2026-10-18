@@ -1,169 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Compare Games — SteamDB Clone{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}Compare Steam games — PlayNexus{% endblock %}
+{% block description %}Put up to four Steam games side by side: price, value score, cost per hour, reviews and playtime.{% endblock %}
 
 {% block content %}
-<div class="wrap">
-  <div class="compare-header">
+<div class="wrap page">
+  <header class="page-head">
     <div>
-      <h1 style="font-family:var(--font-display);margin-bottom:6px;">🆚 Compare Games</h1>
-      <p style="color:var(--muted);">Add 2–4 games to compare prices, value scores, and vibes side by side.</p>
+      <h1>Compare</h1>
+      <p class="lede">Put up to four games side by side. The address updates as you go, so you can share it.</p>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" onclick="doClear()">Clear All</button>
+    <div class="row">
+      <button class="btn btn--sm" type="button" data-copy-link>{{ ui.icon('link', 'icon--sm') }}Copy link</button>
+      <button class="btn btn--sm btn--quiet" type="button" data-clear-compare>Clear all</button>
     </div>
+  </header>
+
+  <div class="combo compare-search" id="compare-search">
+    <div class="combo__field">
+      {{ ui.icon('plus') }}
+      <input class="combo__input" type="text" role="combobox" aria-expanded="false" aria-controls="compare-results"
+             aria-autocomplete="list" aria-label="Add a game to compare" placeholder="Add a game" autocomplete="off" spellcheck="false">
+      <button class="combo__clear" type="button" aria-label="Clear" hidden>{{ ui.icon('x', 'icon--sm') }}</button>
+    </div>
+    <ul class="listbox" id="compare-results" role="listbox" aria-label="Matching games" hidden></ul>
   </div>
 
-  <!-- Current compare list -->
-  <div class="compare-slots" id="compare-slots"></div>
-
-  <!-- Add more -->
-  <div style="margin-top:16px;">
-    <form onsubmit="return addBySearch(event)" autocomplete="off" style="display:flex;gap:8px;max-width:400px;">
-      <div class="search-box" style="flex:1;">
-        <input type="text" id="game_input" name="game_input" placeholder="Add a game…">
-        <button type="button" class="clear-btn" id="clear_btn" aria-label="Clear">×</button>
-        <input type="hidden" id="game_input_id" name="game_input_id" value="">
-        <div id="autocomplete-list" class="dropdown"></div>
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">Add</button>
-    </form>
-  </div>
-
-  <!-- Comparison table -->
-  <div id="compare-result" style="margin-top:24px;"></div>
+  <div id="compare-body" class="compare-body" aria-live="polite"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  // Init autocomplete for add-game input
-  const input = document.getElementById('game_input');
-  const hidden = document.getElementById('game_input_id');
-
-  initSearchAutocomplete(
-    input, hidden,
-    document.getElementById('autocomplete-list'),
-    document.getElementById('clear_btn'),
-    null  // don't auto-submit form
-  );
-
-  function addBySearch(e) {
-    e.preventDefault();
-    const appid = hidden.value || input.value.trim();
-    const name = input.value.trim();
-    if (!appid) return false;
-    addToCompare(appid, name);
-    input.value = ''; hidden.value = '';
-    renderSlots();
-    loadComparison();
-    return false;
-  }
-
-  function doClear() {
-    clearCompare();
-    renderSlots();
-    document.getElementById('compare-result').innerHTML = '';
-  }
-
-  function renderSlots() {
-    const list = getCompareList();
-    const el = document.getElementById('compare-slots');
-    if (!list.length) {
-      el.innerHTML = '<span style="color:var(--muted);font-size:13px;">No games added yet. Use the search box or add from game pages.</span>';
-      return;
-    }
-    el.innerHTML = list.map(g => `
-      <div class="compare-slot">
-        <span>${escapeHtml(g.name || g.appid)}</span>
-        <button class="remove-btn" onclick="doRemove('${g.appid}')" title="Remove">×</button>
-      </div>
-    `).join('');
-  }
-
-  function doRemove(appid) {
-    removeFromCompare(appid);
-    renderSlots();
-    loadComparison();
-  }
-
-  async function loadComparison() {
-    const list = getCompareList();
-    const result = document.getElementById('compare-result');
-    if (list.length < 2) {
-      result.innerHTML = '<p style="color:var(--muted);font-size:14px;">Add at least 2 games to compare.</p>';
-      return;
-    }
-
-    result.innerHTML = '<div class="spinner"></div>';
-
-    // Fetch all game data in parallel
-    const promises = list.map(g =>
-      cachedFetch(`/api/game/${g.appid}`).catch(() => null)
-    );
-    const games = (await Promise.all(promises)).filter(Boolean);
-
-    if (games.length < 2) {
-      result.innerHTML = '<p style="color:var(--muted);">Could not load enough game data.</p>';
-      return;
-    }
-
-    result.innerHTML = `
-      <div class="card card-flat" style="overflow-x:auto;">
-        <table class="compare-table">
-          <thead>
-            <tr>
-              <th></th>
-              ${games.map(g => `
-                <th style="text-align:center;">
-                  <img src="${g.cover_url}" class="compare-cover" alt="${escapeHtml(g.name)}"
-                       onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/${g.appid}/header.jpg'">
-                  <div style="margin-top:6px;font-size:13px;font-weight:700;color:var(--text);">${escapeHtml(g.name)}</div>
-                </th>
-              `).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Value Score</td>
-              ${games.map(g => `<td style="text-align:center;"><span class="badge">${g.value_score}</span> ${escapeHtml(g.value_label)}</td>`).join('')}
-            </tr>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Price (USD)</td>
-              ${games.map(g => `<td style="text-align:center;font-weight:700;">$${g.usd_price ? g.usd_price.toFixed(2) : 'N/A'}</td>`).join('')}
-            </tr>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Positivity</td>
-              ${games.map(g => {
-                const pct = Math.round((g.reviews?.positivity || 0) * 100);
-                const cls = pct >= 70 ? 'positive' : pct >= 50 ? 'neutral' : 'negative';
-                return `<td style="text-align:center;" class="trend-val ${cls}">${pct}%</td>`;
-              }).join('')}
-            </tr>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Total Reviews</td>
-              ${games.map(g => `<td style="text-align:center;">${(g.reviews?.total_reviews || 0).toLocaleString()}</td>`).join('')}
-            </tr>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Median Playtime</td>
-              ${games.map(g => `<td style="text-align:center;">${(g.value_breakdown?.effective_hours || 0).toFixed(1)} hrs</td>`).join('')}
-            </tr>
-            <tr>
-              <td style="font-weight:600;color:var(--muted);">Top Vibes</td>
-              ${games.map(g => {
-                const vibes = (g.vibes?.top || []).slice(0, 3).map(v =>
-                  `<span class="badge badge-outline" style="font-size:11px;">${v.emoji} ${escapeHtml(v.label)}</span>`
-                ).join(' ');
-                return `<td style="text-align:center;">${vibes}</td>`;
-              }).join('')}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  // Init on load
-  renderSlots();
-  if (getCompareList().length >= 2) loadComparison();
-</script>
+<script type="module" src="{{ asset_url('js/pages/compare.js') }}"></script>
 {% endblock %}

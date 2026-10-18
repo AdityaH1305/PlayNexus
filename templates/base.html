@@ -1,55 +1,137 @@
-<!DOCTYPE html>
+{% import "macros.html" as ui %}
+<!doctype html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="PlayNexus — Explore Steam game prices, value scores, vibes, and analytics.">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}PlayNexus{% endblock %}</title>
+  <meta name="description" content="{% block description %}Steam prices in 16 regions, a value score built from real playtime, live player counts and what a game actually feels like to play.{% endblock %}">
+  <meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
+  {%- if site_url %}
+  <link rel="canonical" href="{{ site_url }}{{ request.path }}">
+  {%- endif %}
+
+  {%- block og %}
+  <meta property="og:site_name" content="PlayNexus">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  {%- if site_url %}<meta property="og:url" content="{{ site_url }}{{ request.path }}">{% endif %}
+  <meta name="twitter:card" content="summary">
+  {%- endblock %}
+
+  <link rel="icon" href="{{ asset_url('img/favicon.svg') }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{{ asset_url('css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/base.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/components.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/pages.css') }}">
   {% block head %}{% endblock %}
-</head>
 
-<body class="page-bg">
-  <!-- Navigation -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">
-        <span>🎮</span>
-        <span>Play<span class="accent">Nexus</span></span>
-      </a>
-      <div class="nav-links">
-        <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Search</a>
-        <a href="/trending" class="nav-link {% if request.path == '/trending' %}active{% endif %}">🔥 Trending</a>
-        <a href="/moods" class="nav-link {% if request.path == '/moods' %}active{% endif %}">🧠 Vibes</a>
-        <a href="/compare" class="nav-link {% if request.path == '/compare' %}active{% endif %}">
-          🆚 Compare
-          <span id="compare-count" class="badge"
-            style="display:none;font-size:11px;padding:2px 6px;margin-left:2px;">0</span>
-        </a>
+  <script>
+    /* Runs before first paint: pick the theme, and catch broken Steam art
+       (even images that fail before our modules load). */
+    (function () {
+      var d = document.documentElement, t;
+      try { t = localStorage.getItem("playnexus_theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      d.setAttribute("data-theme", t);
+      document.addEventListener("error", function (e) {
+        var img = e.target;
+        if (!img || img.tagName !== "IMG" || !img.getAttribute("data-appid")) return;
+        var stage = img.getAttribute("data-stage") || "0";
+        if (stage === "0") {
+          img.setAttribute("data-stage", "1");
+          img.src = "/api/art/" + img.getAttribute("data-appid") + "?kind=" + (img.getAttribute("data-art") || "header");
+        } else if (stage === "1") {
+          img.setAttribute("data-stage", "2");
+          img.classList.add("is-missing");
+          img.src = "{{ asset_url('img/no-art.svg') }}";
+        }
+      }, true);
+    })();
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "pn/core": "{{ asset_url('js/core.js') }}",
+        "pn/search": "{{ asset_url('js/search.js') }}",
+        "pn/charts": "{{ asset_url('js/charts.js') }}"
+      }
+    }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  {% include "partials/icons.svg" %}
+
+  <header class="site-nav">
+    <div class="wrap site-nav__inner">
+      <a class="brand" href="{{ url_for('pages.home') }}">{{ ui.mark(22) }}<span>PlayNexus</span></a>
+
+      <nav aria-label="Main">
+        <ul class="nav-links">
+          {%- for item in nav_items %}
+          <li><a href="{{ item.href }}"{% if request.path.startswith(item.href) %} aria-current="page"{% endif %}>
+            {{- item.label -}}
+            {%- if item.href == '/compare' %}<span class="nav-count" data-compare-count hidden></span>{% endif -%}
+          </a></li>
+          {%- endfor %}
+        </ul>
+      </nav>
+
+      <div class="nav-tools">
+        <button class="search-trigger" type="button" data-open-palette aria-label="Search games">
+          {{ ui.icon('search', 'icon--sm') }}<span>Search games</span><kbd data-shortcut-hint>Ctrl K</kbd>
+        </button>
+        <button class="btn btn--icon btn--quiet nav-search-icon" type="button" data-open-palette aria-label="Search games">{{ ui.icon('search') }}</button>
+        <button class="btn btn--icon btn--quiet" type="button" data-theme-toggle aria-label="Switch theme">
+          <span class="theme-icon theme-icon--dark">{{ ui.icon('moon') }}</span>
+          <span class="theme-icon theme-icon--light">{{ ui.icon('sun') }}</span>
+        </button>
+        <button class="btn btn--icon btn--quiet nav-toggle" type="button" aria-expanded="false" aria-controls="nav-sheet" aria-label="Menu">{{ ui.icon('menu') }}</button>
       </div>
     </div>
-  </nav>
+    <div class="wrap nav-sheet" id="nav-sheet" hidden>
+      <ul>
+        {%- for item in nav_items %}
+        <li><a href="{{ item.href }}"{% if request.path.startswith(item.href) %} aria-current="page"{% endif %}>{{ ui.icon(item.icon) }}{{ item.label }}</a></li>
+        {%- endfor %}
+      </ul>
+    </div>
+  </header>
 
-  <!-- Main Content -->
-  <main>
+  <main id="main">
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Footer -->
-  <footer class="footer">
-    Built with Flask & Steam API · <a href="https://store.steampowered.com" target="_blank" rel="noopener">Steam
-      Store</a>
-    · Press <kbd>/</kbd> to search
+  <footer class="site-footer">
+    <div class="wrap site-footer__inner">
+      <p>Prices, reviews and charts from <a href="https://store.steampowered.com" rel="noopener">Steam</a>. Store deals from <a href="https://www.cheapshark.com" rel="noopener">CheapShark</a>. Exchange rates from <a href="https://www.exchangerate-api.com" rel="noopener">ExchangeRate-API</a>.</p>
+      <p>Not affiliated with Valve. Press <kbd>/</kbd> to search.</p>
+    </div>
   </footer>
 
-  <script src="{{ asset_url('js/app.js') }}"></script>
+  <dialog class="palette" id="palette" aria-label="Search">
+    <div class="combo" data-combo="palette">
+      <div class="combo__field">
+        {{ ui.icon('search') }}
+        <input class="combo__input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" placeholder="Search games, or jump to a page" autocomplete="off" spellcheck="false">
+        <button class="combo__clear" type="button" aria-label="Clear" hidden>{{ ui.icon('x', 'icon--sm') }}</button>
+      </div>
+      <ul class="listbox" id="palette-list" role="listbox" aria-label="Results"></ul>
+    </div>
+    <div class="palette__foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script type="module" src="{{ asset_url('js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
-
 </html>

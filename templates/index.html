@@ -1,56 +1,66 @@
 {% extends "base.html" %}
-{% block title %}PlayNexus — Game Search{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}PlayNexus: is that Steam game worth the money?{% endblock %}
 
 {% block content %}
-<div class="search-hero">
-  <h1>Play<span class="glow">Nexus</span></h1>
-  <p class="tagline">Discover game value, vibes, and pricing insights.</p>
+<section class="hero">
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <h1>Is it worth the money?</h1>
+      <p class="hero__lede">Look up any Steam game for its price in 16 regions, a value score built from how long people actually play it, and what it's like to play.</p>
 
-  <form method="POST" action="/game" id="searchForm" autocomplete="off">
-    <div class="search-box">
-      <input type="text" id="game_input" name="game_input" placeholder="Enter game name or Steam App ID…" required>
-      <button type="button" class="clear-btn" id="clear_btn" aria-label="Clear">×</button>
-      <input type="hidden" id="game_input_id" name="game_input_id" value="">
-      <div id="autocomplete-list" class="dropdown"></div>
+      <form class="combo hero__search" data-primary-search method="post" action="{{ url_for('pages.game_post') }}" role="search">
+        <div class="combo__field">
+          {{ ui.icon('search') }}
+          <input class="combo__input" name="game_input" type="text" role="combobox" aria-expanded="false"
+                 aria-controls="home-results" aria-autocomplete="list" aria-label="Search Steam games"
+                 placeholder="Search Steam games" autocomplete="off" spellcheck="false" required>
+          <button class="combo__clear" type="button" aria-label="Clear search" hidden>{{ ui.icon('x', 'icon--sm') }}</button>
+        </div>
+        <ul class="listbox" id="home-results" role="listbox" aria-label="Matching games" hidden></ul>
+      </form>
+      <p class="hero__try">Try <a href="{{ url_for('pages.game_page', appid=1145360) }}">Hades</a>,
+        <a href="{{ url_for('pages.game_page', appid=413150) }}">Stardew Valley</a> or
+        <a href="{{ url_for('pages.game_page', appid=1086940) }}">Baldur's Gate 3</a>.</p>
     </div>
-    <button type="submit" class="btn btn-primary" style="margin-top:12px;width:100%;max-width:560px;">
-      🔍 Search
-    </button>
-  </form>
 
-  <!-- Recently Viewed -->
-  <div class="home-section" id="recent-section" style="display:none;width:100%;max-width:800px;">
-    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-      <h2>🕐 Recently Viewed</h2>
-      <button onclick="localStorage.removeItem('steamdb_recent'); document.getElementById('recent-section').style.display='none';" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 4px 8px;">Clear</button>
-    </div>
-    <div class="home-scroll" id="recent-scroll"></div>
+    {% if playing %}
+    <aside class="panel live-list" aria-labelledby="live-title">
+      <div class="panel__head">
+        <h2 id="live-title">Playing right now</h2>
+        <a class="small" href="{{ url_for('pages.charts_page') }}">Full chart</a>
+      </div>
+      <ol class="live-list__items">
+        {% for g in playing %}
+        <li>
+          <a class="live-row" href="{{ url_for('pages.game_page', appid=g.appid) }}">
+            <span class="live-row__rank num">{{ loop.index }}</span>
+            <span class="live-row__art">{{ ui.art(g.appid, g.capsule, 'capsule') }}</span>
+            <span class="live-row__name">{{ g.name }}</span>
+            <span class="live-row__count num" title="{{ g.players|comma }} playing now">{{ g.players|compact }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+    </aside>
+    {% endif %}
   </div>
+</section>
 
-  <!-- Favorites -->
-  <div class="home-section" id="fav-section" style="display:none;width:100%;max-width:800px;">
-    <h2>❤️ Favorites</h2>
-    <div class="home-scroll" id="fav-scroll"></div>
+<section class="wrap section" id="recent-section" hidden aria-labelledby="recent-title">
+  <div class="section-head">
+    <h2 id="recent-title">Recently viewed</h2>
+    <button class="btn btn--sm btn--quiet" type="button" data-clear-recent>Clear</button>
   </div>
-</div>
+  <div class="hscroll" id="recent-list"></div>
+</section>
+
+<section class="wrap section" id="fav-section" hidden aria-labelledby="fav-title">
+  <div class="section-head"><h2 id="fav-title">Favorites</h2></div>
+  <div class="hscroll" id="fav-list"></div>
+</section>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  // Init autocomplete
-  initSearchAutocomplete(
-    document.getElementById('game_input'),
-    document.getElementById('game_input_id'),
-    document.getElementById('autocomplete-list'),
-    document.getElementById('clear_btn'),
-    document.getElementById('searchForm')
-  );
-
-  // Focus on load
-  document.getElementById('game_input').focus();
-
-  // Render recent & favorites
-  renderHomeSection('recent-scroll', getRecentlyViewed());
-  renderHomeSection('fav-scroll', getFavorites());
-</script>
+<script type="module" src="{{ asset_url('js/pages/home.js') }}"></script>
 {% endblock %}

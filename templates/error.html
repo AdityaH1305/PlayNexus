@@ -1,11 +1,15 @@
 {% extends "base.html" %}
+{% import "macros.html" as ui %}
 {% block title %}{{ title }} — PlayNexus{% endblock %}
 
 {% block content %}
-<div class="wrap" style="max-width:640px;padding-top:64px;">
-  <p style="color:var(--muted);font-size:13px;letter-spacing:.08em;">ERROR {{ code }}</p>
-  <h1 style="margin:8px 0 12px;">{{ title }}</h1>
-  <p style="color:var(--text-2);margin-bottom:24px;">{{ message }}</p>
-  <a class="btn btn-ghost" href="/">Back to search</a>
+<div class="wrap page error-page">
+  <p class="error-page__code num">{{ code }}</p>
+  <h1>{{ title }}</h1>
+  <p class="lede">{{ message }}</p>
+  <div class="row row--wrap">
+    <a class="btn btn--primary" href="{{ url_for('pages.home') }}">Back to search</a>
+    <a class="btn" href="{{ url_for('pages.charts_page') }}">See what's popular</a>
+  </div>
 </div>
 {% endblock %}

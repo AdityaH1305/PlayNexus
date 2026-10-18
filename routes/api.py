@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, redirect, request
 
 from routes.caching import cdn_cache
+from services import charts
 from services import game as game_service
-from services import pricing, steam, tags
+from services import pricing, steam
 from services.http import UpstreamError
 from services.recommendations import get_recommendations
 from services.search import search
@@ -43,19 +44,23 @@ def api_search():
 @cdn_cache(s_maxage=1800)
 def api_game(appid: int):
     g = _game_or_404(appid)
+    prices = g["prices"]
+    cheapest = next((r for r in prices["regions"] if r.get("is_cheapest")), None)
     return jsonify({
         "appid": g["appid"],
         "name": g["name"],
-        "cover_url": g["header_image"],
+        "header": g["header_image"],
         "store_url": g["store_url"],
         "is_free": g["is_free"],
-        "prices": g["prices"],
+        "coming_soon": g["coming_soon"],
+        "prices": prices,
+        "cheapest_region": cheapest,
         "usd_price": g["usd_price"],
         "reviews": g["reviews"],
-        "value_score": g["value"]["score"],
-        "value_label": g["value"]["label"],
-        "value_breakdown": g["value"]["breakdown"],
-        "vibes": g["vibes"],
+        "value": g["value"],
+        "vibes": {"top": [
+            {"key": v["key"], "label": v["label"], "score": v["score"]} for v in g["vibes"].get("top", [])
+        ]},
     })
 
 
@@ -93,29 +98,24 @@ def api_discover():
     return jsonify(discover_by_vibes(keys, limit=18) if keys else [])
 
 
-@bp.route("/trending")
+_ART_KEYS = {"header": "header", "capsule": "small_capsule", "hero": "hero", "library": "library_capsule"}
+
+
+@bp.route("/art/<int:appid>")
+@cdn_cache(s_maxage=7 * 86400, swr=30 * 86400, error_s_maxage=3600)
+def api_art(appid: int):
+    """Redirect to a game's real art URL (newer games use hashed paths)."""
+    key = _ART_KEYS.get(request.args.get("kind", "header"), "header")
+    item = steam.store_items([appid]).get(appid)
+    url = item and (item.get(key) or item.get("header"))
+    if not url:
+        abort(404)
+    return redirect(url, 302)
+
+
+@bp.route("/charts/<name>")
 @cdn_cache(s_maxage=15 * 60)
-def api_trending():
-    """Top 20 games by players right now, from Steam's live chart."""
-    try:
-        ranks = steam.concurrent_chart().get("ranks") or []
-    except UpstreamError:
-        abort(503)
-    appids = [int(r["appid"]) for r in ranks[:24]]
-    items = steam.store_items(appids)
-    out = []
-    for r in ranks[:24]:
-        it = items.get(int(r["appid"]))
-        if not it or not it["name"]:
-            continue
-        price = "Free to play" if it["is_free"] else ((it["price"] or {}).get("final_formatted") or "")
-        out.append({
-            "appid": it["appid"],
-            "name": it["name"],
-            "cover": it["header"],
-            "short_description": it["short_description"][:120],
-            "price": price,
-            "players": r.get("concurrent_in_game"),
-            "genres": tags.top_names(it["tags"], 3),
-        })
-    return jsonify(out[:20])
+def api_chart(name: str):
+    if name not in charts.CHARTS:
+        abort(404)
+    return jsonify(charts.safe(charts.CHARTS[name][1]))

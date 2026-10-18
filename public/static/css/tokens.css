@@ -1,0 +1,118 @@
+/* PlayNexus design tokens — "Graphite and amber".
+   Dark is the default. Light is set by data-theme="light" on <html> (the
+   inline script in base.html picks it from the saved choice or the system),
+   with a prefers-color-scheme fallback for visitors without JavaScript. */
+
+:root {
+  color-scheme: dark;
+
+  /* Neutrals: warm graphite, hue ~40°, very low chroma */
+  --bg: #141311;
+  --surface: #1c1b18;
+  --raised: #252420;
+  --line: #34322d;
+  --line-soft: #2a2925;
+  --text: #ede9e1;
+  --text-2: #b5afa4;
+  --muted: #8a8478;
+
+  /* The one accent. Fills use --accent with --accent-ink text on top. */
+  --accent: #e9a23b;
+  --accent-hover: #f2b457;
+  --accent-ink: #1a1204;
+  --accent-text: #e9a23b;
+  --accent-wash: rgba(233, 162, 59, 0.12);
+
+  /* Sentiment. "Mixed" is the tan Steam itself uses for mixed reviews. */
+  --pos: #8db670;
+  --mixed: #b9a074;
+  --neg: #d9694a;
+  --pos-wash: rgba(141, 182, 112, 0.14);
+  --neg-wash: rgba(217, 105, 74, 0.14);
+
+  --scrim: rgba(8, 7, 6, 0.62);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+  /* Type */
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-15: 0.9375rem;
+  --fs-17: 1.0625rem;
+  --fs-20: 1.25rem;
+  --fs-24: 1.5rem;
+  --fs-32: 2rem;
+  --fs-44: 2.75rem;
+
+  /* Shape and space */
+  --r-tag: 2px;
+  --r-ctl: 4px;
+  --r-panel: 6px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --wrap: 1200px;
+  --gutter: 24px;
+  --nav-h: 56px;
+
+  --dur: 140ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f1ea;
+  --surface: #fbf9f4;
+  --raised: #efebe2;
+  --line: #d8d2c6;
+  --line-soft: #e6e1d7;
+  --text: #1c1a16;
+  --text-2: #4b463d;
+  --muted: #706a5e;
+  --accent-text: #8a5410;
+  --accent-wash: rgba(185, 116, 26, 0.13);
+  --pos: #4f7a35;
+  --mixed: #8a7442;
+  --neg: #b4472c;
+  --pos-wash: rgba(79, 122, 53, 0.12);
+  --neg-wash: rgba(180, 71, 44, 0.1);
+  --scrim: rgba(28, 26, 22, 0.4);
+  --shadow-pop: 0 12px 32px rgba(40, 30, 10, 0.14), 0 2px 6px rgba(40, 30, 10, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: #f4f1ea;
+    --surface: #fbf9f4;
+    --raised: #efebe2;
+    --line: #d8d2c6;
+    --line-soft: #e6e1d7;
+    --text: #1c1a16;
+    --text-2: #4b463d;
+    --muted: #706a5e;
+    --accent-text: #8a5410;
+    --accent-wash: rgba(185, 116, 26, 0.13);
+    --pos: #4f7a35;
+    --mixed: #8a7442;
+    --neg: #b4472c;
+    --pos-wash: rgba(79, 122, 53, 0.12);
+    --neg-wash: rgba(180, 71, 44, 0.1);
+    --scrim: rgba(28, 26, 22, 0.4);
+    --shadow-pop: 0 12px 32px rgba(40, 30, 10, 0.14), 0 2px 6px rgba(40, 30, 10, 0.08);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+  }
+}

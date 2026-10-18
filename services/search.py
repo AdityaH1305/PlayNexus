@@ -43,7 +43,7 @@ _JUNK_WORDS = frozenset({
 })
 _JUNK_PHRASES = (
     "dedicated server", "season pass", "art book", "public test", "test server",
-    "supporter pack", "bonus content", "original soundtrack",
+    "supporter pack", "bonus content", "original soundtrack", "technical test",
 )
 
 # Until the built index exists, these well-known games get a popularity boost.
@@ -253,6 +253,9 @@ def find_matches(query: str, limit: int = 8) -> list[dict[str, Any]]:
     ]
 
 
+GOOD_MATCH = 90  # e.g. every query word starts a word in the name, plus some popularity
+
+
 def search(query: str, limit: int = 8) -> list[dict[str, Any]]:
     """Local matches, topped up with Steam's store search when they're weak.
 
@@ -263,21 +266,24 @@ def search(query: str, limit: int = 8) -> list[dict[str, Any]]:
     from services.http import UpstreamError
 
     local = find_matches(query, limit)
-    strong = [r for r in local if r["score"] >= 100]
-    if len(strong) >= min(limit, 3) or len(query.strip()) < 3:
+    good = [r for r in local if r["score"] >= GOOD_MATCH]
+    if len(good) >= min(limit, 3) or len(query.strip()) < 3:
         return local
     try:
         items = steam.store_search(query.strip())
     except UpstreamError:
         return local
     seen = {r["appid"] for r in local}
+    candidates = [it for it in items if it.get("type") == "app" and it.get("id") and int(it["id"]) not in seen]
+    # Steam's search also returns DLC and soundtracks; keep confirmed games only.
+    kinds = steam.store_items([int(it["id"]) for it in candidates])
     extra = [
         {"appid": int(it["id"]), "name": it["name"], "score": 0.0, "image": it.get("tiny_image")}
-        for it in items
-        if it.get("type") == "app" and it.get("id") and int(it["id"]) not in seen
+        for it in candidates
+        if (kinds.get(int(it["id"])) or {}).get("type") == 0
     ]
-    weak = [r for r in local if r["score"] < 100]
-    return (strong + extra + weak)[:limit]
+    weak = [r for r in local if r["score"] < GOOD_MATCH]
+    return (good + extra + weak)[:limit]
 
 
 def find_appid_by_name(query: str) -> int | None:

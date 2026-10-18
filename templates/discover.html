@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}Discover games by vibe — PlayNexus{% endblock %}
+{% block description %}Pick up to three vibes, from cozy to souls-like, and find Steam games that match.{% endblock %}
+
+{% block content %}
+<div class="wrap page">
+  <header class="page-head">
+    <div>
+      <h1>Discover</h1>
+      <p class="lede">Pick up to three vibes. Games that fit all of them come first.</p>
+    </div>
+  </header>
+
+  <div class="vibe-toggles" role="group" aria-label="Vibes">
+    {% for v in vibes %}
+    <button class="toggle" type="button" aria-pressed="false" data-vibe="{{ v.key }}">{{ v.label }}</button>
+    {% endfor %}
+  </div>
+
+  <p class="discover-status small muted" id="discover-status" aria-live="polite">Choose a vibe to start.</p>
+  <div class="card-grid" id="discover-results"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ asset_url('js/pages/discover.js') }}"></script>
+{% endblock %}

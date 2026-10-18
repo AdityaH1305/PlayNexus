@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+{% block title %}{{ title }} on Steam — PlayNexus{% endblock %}
+{% block description %}{{ title }} on Steam, updated live, with review scores and prices.{% endblock %}
+
+{% macro price(g) -%}
+{%- if g.is_free -%}<span class="muted">Free</span>
+{%- elif g.price -%}
+  {%- if g.price.discount -%}<span class="discount">−{{ g.price.discount }}%</span> {% endif -%}
+  <span class="num">{{ g.price.final_formatted }}</span>
+{%- else -%}<span class="muted">—</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro rank_change(g) -%}
+{%- if not g.last_week_rank -%}<span class="flag-note flag-note--accent">New</span>
+{%- else -%}{%- set d = g.last_week_rank - g.rank -%}
+  {%- if d > 0 -%}<span class="delta--up num" title="Up {{ d }} since last week">▲ {{ d }}</span>
+  {%- elif d < 0 -%}<span class="delta--down num" title="Down {{ -d }} since last week">▼ {{ -d }}</span>
+  {%- else -%}<span class="muted num" title="Same as last week">–</span>{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="wrap page">
+  <header class="page-head">
+    <div>
+      <h1>Charts</h1>
+      <p class="lede">What people are playing and buying on Steam right now.</p>
+    </div>
+    {% if chart.updated %}
+    <p class="small muted">{% if tab == 'sellers' %}Sales for the week of {{ chart.updated|date('day') }}{% else %}Steam data from {{ chart.updated|date('time') }}{% endif %}</p>
+    {% endif %}
+  </header>
+
+  <nav class="tabs" aria-label="Chart">
+    {% for key, item in tabs.items() %}
+    <a class="tab" href="{{ url_for('pages.charts_page', tab=key) }}"{% if key == tab %} aria-current="page"{% endif %}>{{ item[0] }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if chart.error %}
+  <div class="section">{{ ui.empty("Steam's charts aren't answering", "This usually clears up within a few minutes. Try again shortly.") }}</div>
+  {% elif not chart.rows %}
+  <div class="section">{{ ui.empty("Nothing here yet", "Steam hasn't published this list right now.") }}</div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="table chart-table">
+      <thead>
+        <tr>
+          <th class="num" scope="col">#</th>
+          {% if tab == 'sellers' %}<th scope="col"><span class="sr-only">Change since last week</span></th>{% endif %}
+          <th scope="col">Game</th>
+          {% if tab == 'playing' %}
+          <th class="num" scope="col">Playing now</th>
+          <th class="num hide-sm" scope="col">Peak today</th>
+          {% elif tab in ('new', 'soon') %}
+          <th scope="col" class="hide-sm">Release</th>
+          {% endif %}
+          <th scope="col" class="hide-sm">Reviews</th>
+          <th class="num" scope="col">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in chart.rows %}
+        <tr>
+          <td class="num muted">{{ g.rank }}</td>
+          {% if tab == 'sellers' %}<td class="rank-change">{{ rank_change(g) }}</td>{% endif %}
+          <td>
+            <a class="chart-game" href="{{ url_for('pages.game_page', appid=g.appid) }}">
+              <span class="chart-game__art">{{ ui.art(g.appid, g.capsule, 'capsule') }}</span>
+              <span class="chart-game__text">
+                <span class="chart-game__name">{{ g.name }}</span>
+                {% if g.tags %}<span class="chart-game__tags">{{ g.tags|join(' · ') }}</span>{% endif %}
+              </span>
+            </a>
+          </td>
+          {% if tab == 'playing' %}
+          <td class="num">{{ g.players|comma }}</td>
+          <td class="num hide-sm muted">{{ g.peak|comma }}</td>
+          {% elif tab in ('new', 'soon') %}
+          <td class="hide-sm text-2">{% if g.release_date %}{{ g.release_date|date('day') }}{% else %}<span class="muted">To be announced</span>{% endif %}</td>
+          {% endif %}
+          <td class="hide-sm">{{ ui.review(g.review_label, g.review_pct, g.review_count) if g.review_pct is not none else '<span class="muted small">Too few reviews</span>'|safe }}</td>
+          <td class="num price-cell">{{ price(g) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

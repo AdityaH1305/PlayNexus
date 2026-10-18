@@ -19,6 +19,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "static")
 
+NAV_ITEMS = [
+    {"label": "Charts", "href": "/charts", "icon": "chart"},
+    {"label": "Discover", "href": "/discover", "icon": "compass"},
+    {"label": "Compare", "href": "/compare", "icon": "columns"},
+]
+
 
 @lru_cache(maxsize=256)
 def _file_version(filename: str) -> str:
@@ -48,9 +54,22 @@ def create_app() -> Flask:
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp)
 
-    @app.context_processor
-    def inject_globals():
-        return {"asset_url": asset_url, "site_name": Config.SITE_NAME, "site_url": Config.SITE_URL}
+    from services import fmt
+
+    # Globals (not a context processor) so imported macros can use them too.
+    app.jinja_env.globals.update(
+        asset_url=asset_url,
+        art_url=fmt.art_url,
+        site_name=Config.SITE_NAME,
+        site_url=Config.SITE_URL,
+        nav_items=NAV_ITEMS,
+    )
+
+    app.add_template_filter(fmt.comma, "comma")
+    app.add_template_filter(fmt.compact, "compact")
+    app.add_template_filter(fmt.usd, "usd")
+    app.add_template_filter(fmt.date, "date")
+    app.add_template_filter(fmt.hours, "hours")
 
     @app.errorhandler(404)
     def not_found(_e):

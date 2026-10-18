@@ -42,6 +42,12 @@ def load_game(appid: int) -> dict[str, Any] | None:
 
     usd = 0.0 if is_free else prices["reference_usd"]
     score, label, breakdown = value_score.compute_value_score(usd, stats, is_free=is_free)
+    worth_it = None
+    if not is_free and stats["total_reviews"]:
+        worth_it = {
+            "great": value_score.worth_it_price(stats, 70),
+            "good": value_score.worth_it_price(stats, 55),
+        }
 
     return {
         "appid": appid,
@@ -54,7 +60,7 @@ def load_game(appid: int) -> dict[str, Any] | None:
         "prices": prices,
         "usd_price": usd,
         "reviews": stats,
-        "value": {"score": score, "label": label, "breakdown": breakdown},
+        "value": {"score": score, "label": label, "breakdown": breakdown, "worth_it": worth_it},
         "vibes": vibe_info,
     }
 

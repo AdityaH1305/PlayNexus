@@ -1,0 +1,67 @@
+{# Shared UI pieces. Import with: {% import "macros.html" as ui %} #}
+
+{% macro icon(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro mark(size=20) -%}
+<svg class="mark" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.5 22.5 12 12 22.5 1.5 12Z" class="mark-outer"/><path d="M12 7.25 16.75 12 12 16.75 7.25 12Z" class="mark-inner"/></svg>
+{%- endmacro %}
+
+{% macro region_chip(code) -%}
+<span class="chip-region">{{ code }}</span>
+{%- endmacro %}
+
+{# Review summary coloured by sentiment: pos ≥ 70 %, mixed 40–69 %, neg below. #}
+{% macro review_tone(pct) -%}
+{%- if pct is none -%}none{%- elif pct >= 70 -%}pos{%- elif pct >= 40 -%}mixed{%- else -%}neg{%- endif -%}
+{%- endmacro %}
+
+{% macro review(label, pct, count=none) -%}
+{%- if pct is not none -%}
+<span class="review review--{{ review_tone(pct) }}" title="{{ '%d%% positive'|format(pct) }}{% if count %} of {{ '{:,}'.format(count) }} reviews{% endif %}">
+  <span class="review__label">{{ label or 'Reviews' }}</span>
+  <span class="review__pct num">{{ pct|int }}%</span>
+</span>
+{%- else -%}
+<span class="review review--none">No reviews yet</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro tag(text, href=none) -%}
+{%- if href -%}<a class="tag" href="{{ href }}">{{ text }}</a>{%- else -%}<span class="tag">{{ text }}</span>{%- endif -%}
+{%- endmacro %}
+
+{# An image with Steam art fallbacks handled by core.js (data-appid + data-art). #}
+{% macro art(appid, src, kind="header", alt="", cls="", lazy=true) -%}
+<img class="art {{ cls }}" src="{{ src or art_url(appid, kind) }}" alt="{{ alt }}" data-appid="{{ appid }}" data-art="{{ kind }}"{% if lazy %} loading="lazy" decoding="async"{% endif %}>
+{%- endmacro %}
+
+{# A game tile: art, title, one line of meta. #}
+{% macro game_card(g, meta=none) -%}
+<a class="gcard" href="{{ url_for('pages.game_page', appid=g.appid) }}">
+  <span class="gcard__art">{{ art(g.appid, g.header or g.cover, "header", "") }}</span>
+  <span class="gcard__title">{{ g.name }}</span>
+  {%- if meta %}<span class="gcard__meta">{{ meta }}</span>{% endif %}
+</a>
+{%- endmacro %}
+
+{% macro empty(title, body, action_href=none, action_label=none) -%}
+<div class="empty">
+  <p class="empty__title">{{ title }}</p>
+  <p class="empty__body">{{ body }}</p>
+  {%- if action_href %}<a class="btn" href="{{ action_href }}">{{ action_label }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro skeleton_rows(n=6, cls="") -%}
+<div class="skel-list {{ cls }}" aria-hidden="true">
+  {%- for _ in range(n) %}<div class="skel skel--row"></div>{% endfor -%}
+</div>
+{%- endmacro %}
+
+{% macro skeleton_cards(n=6) -%}
+<div class="card-grid" aria-hidden="true">
+  {%- for _ in range(n) %}<div class="skel skel--card"></div>{% endfor -%}
+</div>
+{%- endmacro %}
