@@ -17,9 +17,12 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="{{ self.title() }}">
   <meta property="og:description" content="{{ self.description() }}">
-  {%- if site_url %}<meta property="og:url" content="{{ site_url }}{{ request.path }}">{% endif %}
+  {%- if site_url %}<meta property="og:url" content="{{ site_url }}{{ self.canonical() }}">{% endif %}
   <meta name="twitter:card" content="summary">
   {%- endblock %}
+  {%- if vercel_analytics %}
+  <script defer src="/_vercel/insights/script.js"></script>
+  {%- endif %}
 
   <link rel="icon" href="{{ asset_url('img/favicon.svg') }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,7 +39,7 @@
        region (CSS sets aside room for local prices; prices.js swaps them in),
        and catch broken Steam art (even images that fail before our modules load). */
     (function () {
-      var d = document.documentElement, t;
+      var d = document.documentElement, t, r;
       try { t = localStorage.getItem("playnexus_theme"); } catch (e) {}
       if (t !== "light" && t !== "dark") {
         t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
