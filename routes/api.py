@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, jsonify, redirect, request
 
-from routes.caching import cdn_cache
-from services import charts
+from config import Config
+from routes.caching import cdn_cache, no_store
+from services import charts, cheapshark
 from services import game as game_service
 from services import pricing, steam
-from services.http import UpstreamError
+from services.http import UpstreamError, executor
 from services.recommendations import get_recommendations
 from services.search import search
 from services.vibes import VIBES, discover_by_vibes, score_vibes_for_app
@@ -62,6 +63,71 @@ def api_game(appid: int):
             {"key": v["key"], "label": v["label"], "score": v["score"]} for v in g["vibes"].get("top", [])
         ]},
     })
+
+
+@bp.route("/game/<int:appid>/live")
+@cdn_cache(s_maxage=300, swr=600)
+def api_game_live(appid: int):
+    """Players right now, plus rank and today's peak if it's in the top 100."""
+    f_players = executor.submit(_or_none, steam.current_players, appid)
+    f_chart = executor.submit(_or_none, steam.concurrent_chart)
+    players, chart = f_players.result(), f_chart.result() or {}
+    entry = next((r for r in chart.get("ranks") or [] if int(r["appid"]) == appid), None)
+    return jsonify({
+        "players": players,
+        "rank": entry.get("rank") if entry else None,
+        "peak_today": entry.get("peak_in_game") if entry else None,
+    })
+
+
+@bp.route("/game/<int:appid>/reviews")
+@cdn_cache(s_maxage=12 * 3600)
+def api_game_reviews(appid: int):
+    """Review counts over time (monthly), and the last 30 days."""
+    try:
+        h = steam.review_histogram(appid)
+    except UpstreamError:
+        abort(503)
+    points = [
+        {"t": r["date"], "up": r.get("recommendations_up", 0), "down": r.get("recommendations_down", 0)}
+        for r in h.get("rollups") or []
+    ]
+    recent = h.get("recent") or []
+    return jsonify({
+        "rollup": h.get("rollup_type") or "month",
+        "points": points,
+        "recent": {
+            "up": sum(r.get("recommendations_up", 0) for r in recent),
+            "down": sum(r.get("recommendations_down", 0) for r in recent),
+            "days": len(recent),
+        },
+    })
+
+
+@bp.route("/game/<int:appid>/deals")
+@cdn_cache(s_maxage=6 * 3600)
+def api_game_deals(appid: int):
+    """All-time low and current prices at other stores (CheapShark, USD)."""
+    try:
+        deals = cheapshark.game_deals(appid)
+    except UpstreamError:
+        abort(503)
+    return jsonify(deals or {"cheapest_ever": None, "deals": []})
+
+
+@bp.route("/whereami")
+@no_store
+def api_whereami():
+    """Suggest a price region from the visitor's country (Vercel sets the header)."""
+    country = (request.headers.get("X-Vercel-IP-Country") or "").upper() or None
+    return jsonify({"country": country, "region": Config.region_for_country(country) if country else None})
+
+
+def _or_none(fn, *args):
+    try:
+        return fn(*args)
+    except UpstreamError:
+        return None
 
 
 @bp.route("/prices/<int:appid>")

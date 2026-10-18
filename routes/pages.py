@@ -56,7 +56,30 @@ def game_page(appid: int):
         abort(503)
     if game is None:
         abort(404)
-    return render_template("game.html", game=game)
+
+    # Regional table: cheapest first, then regions without a price.
+    regions = game["prices"]["regions"]
+    priced = sorted((r for r in regions if r.get("usd")), key=lambda r: r["usd"])
+    unpriced = [r for r in regions if not r.get("usd")]
+    top = max((r["usd"] for r in priced), default=0) * 1.08 or 1
+    strip = {r["code"]: round(r["usd"] / top * 100, 2) for r in priced}
+    us_x = round(game["prices"]["us_usd"] / top * 100, 2) if game["prices"]["us_usd"] else None
+
+    page_data = {
+        "appid": game["appid"],
+        "name": game["name"],
+        "header": game["header_image"],
+        "is_free": game["is_free"],
+        "us_usd": game["prices"]["us_usd"],
+        "regions": [
+            {k: r.get(k) for k in ("code", "name", "available", "final_formatted", "usd", "discount")}
+            for r in regions
+        ],
+        "value": game["value"],
+    }
+    return render_template(
+        "game.html", game=game, price_rows=priced + unpriced, strip=strip, us_x=us_x, page_data=page_data,
+    )
 
 
 @bp.route("/charts")

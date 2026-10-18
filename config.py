@@ -57,6 +57,12 @@ class Config:
         {"cc": "ae", "code": "AE", "name": "UAE"},
     ]
 
+    # Countries that pay the euro-area price.
+    EUROZONE: frozenset[str] = frozenset({
+        "AT", "BE", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE",
+        "IT", "LV", "LT", "LU", "MT", "NL", "PT", "SK", "SI", "ES",
+    })
+
     @classmethod
     def region(cls, code_or_cc: str) -> dict[str, str] | None:
         key = (code_or_cc or "").lower()
@@ -64,3 +70,12 @@ class Config:
             if r["cc"] == key or r["code"].lower() == key:
                 return r
         return None
+
+    @classmethod
+    def region_for_country(cls, country: str) -> str | None:
+        """Our region code for an ISO country code, if we price it."""
+        country = (country or "").upper()
+        if country in cls.EUROZONE:
+            return "EU"
+        r = cls.region(country)
+        return r["code"] if r and r["code"] != "EU" else None

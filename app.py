@@ -63,6 +63,7 @@ def create_app() -> Flask:
         site_name=Config.SITE_NAME,
         site_url=Config.SITE_URL,
         nav_items=NAV_ITEMS,
+        config_regions=Config.REGIONS,
     )
 
     app.add_template_filter(fmt.comma, "comma")

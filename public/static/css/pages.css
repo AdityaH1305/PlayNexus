@@ -325,3 +325,569 @@
 .error-page .lede {
   margin: var(--s-3) 0 var(--s-5);
 }
+
+/* ── Game page ────────────────────────────────────────── */
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.game-banner {
+  margin-top: var(--s-5);
+  aspect-ratio: 1920 / 620;
+  max-height: 320px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--r-panel);
+  background: var(--raised);
+}
+
+.game-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-5);
+  align-items: end;
+  padding: var(--s-5) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.game-head h1 {
+  font-size: clamp(2.25rem, 4.5vw, 3.25rem);
+}
+
+.game-head__by {
+  margin-top: var(--s-2);
+  color: var(--text-2);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin: var(--s-3) 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-13);
+}
+
+.facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.facts li + li {
+  padding-left: var(--s-4);
+  border-left: 1px solid var(--line);
+}
+
+.facts li[hidden] {
+  display: none;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pos);
+}
+
+.deck {
+  font-weight: 500;
+}
+
+.deck--3 {
+  color: var(--pos);
+}
+
+.deck--2 {
+  color: var(--mixed);
+}
+
+.deck--1 {
+  color: var(--neg);
+}
+
+.game-head__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+
+.game-main,
+.game-side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-5);
+  align-content: start;
+}
+
+@media (max-width: 960px) {
+  .game-head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .game-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .facts li + li {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .game-head__actions .btn--primary {
+    flex: 1;
+  }
+}
+
+/* Value */
+
+.value__top {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.value__score {
+  font-size: 3.5rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.value__label {
+  font-family: var(--font-display);
+  font-size: var(--fs-24);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.meter {
+  margin: var(--s-5) 0 var(--s-2);
+}
+
+.meter__track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-tag);
+  /* Hard-stop zones that turn more amber past each label threshold. */
+  background: linear-gradient(
+    90deg,
+    var(--line-soft) 0 40%,
+    color-mix(in srgb, var(--accent) 16%, var(--line-soft)) 40% 55%,
+    color-mix(in srgb, var(--accent) 34%, var(--line-soft)) 55% 70%,
+    color-mix(in srgb, var(--accent) 58%, var(--line-soft)) 70% 85%,
+    var(--accent) 85% 100%
+  );
+}
+
+.meter__needle {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: calc(var(--score) * 1%);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 1px;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.meter__scale {
+  position: relative;
+  height: 20px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: var(--fs-12);
+}
+
+.meter__scale span {
+  position: absolute;
+  left: calc(var(--at) * 1%);
+  white-space: nowrap;
+}
+
+.meter__scale span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -8px;
+  height: 5px;
+  border-left: 1px solid var(--line);
+}
+
+.value__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.value__facts dt {
+  color: var(--muted);
+  font-size: var(--fs-12);
+}
+
+.value__facts dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-17);
+}
+
+.value__worth {
+  margin-top: var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--accent);
+  color: var(--text-2);
+  max-width: none;
+}
+
+.value__worth strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.value__explain {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.breakdown {
+  display: grid;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.breakdown__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 56px;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-13);
+}
+
+.breakdown__bar {
+  height: 6px;
+  border-radius: var(--r-tag);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.breakdown__bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.breakdown__pts {
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .value__facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .breakdown__row {
+    grid-template-columns: minmax(0, 1fr) 80px 48px;
+  }
+}
+
+/* Regional prices */
+
+.region-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.select--sm {
+  width: auto;
+  height: 30px;
+  font-size: var(--fs-13);
+}
+
+.price-table .region-cell {
+  white-space: nowrap;
+}
+
+.price-table .chip-region {
+  margin-right: var(--s-2);
+}
+
+.price-table .flag-note {
+  margin-left: 4px;
+}
+
+.price-table tr.is-mine td {
+  background: var(--accent-wash);
+}
+
+.price-table tr.is-mine .region-name {
+  font-weight: 600;
+}
+
+.strip-head,
+.strip-cell {
+  width: 30%;
+  min-width: 120px;
+}
+
+.strip {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.strip::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--line);
+}
+
+.strip__us {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--x) * 1%);
+  border-left: 1px dashed var(--muted);
+}
+
+.strip__dot {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--x) * 1%);
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.strip__dot--pos {
+  background: var(--pos);
+}
+
+.strip__dot--neg {
+  background: var(--neg);
+}
+
+/* Price check */
+
+.price-check {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.price-now__value {
+  font-size: var(--fs-32);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.deals__low {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.deals__list {
+  list-style: none;
+  padding: 0;
+  margin-top: var(--s-2);
+}
+
+.deal {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 7px 0;
+  color: var(--text);
+  font-size: var(--fs-15);
+}
+
+.deal:hover {
+  text-decoration: none;
+}
+
+.deal:hover .deal__store {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.deal img {
+  width: 16px;
+  height: 16px;
+}
+
+.deal .icon {
+  color: var(--muted);
+}
+
+/* Vibes */
+
+.vibes {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.vibe__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.vibe__label {
+  font-weight: 500;
+}
+
+.vibe__bar {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: var(--r-tag);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.vibe__bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.vibe__why {
+  margin-top: 2px;
+}
+
+/* Similar, about */
+
+.similar .grow {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.about p + .about__list,
+.about__list + .about__links {
+  margin-top: var(--s-3);
+}
+
+.about__list {
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-13);
+}
+
+.about__list div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s-3);
+}
+
+.about__list dt {
+  color: var(--muted);
+}
+
+.about__list dd {
+  margin: 0;
+}
+
+/* Review history chart */
+
+.history {
+  position: relative;
+}
+
+.history svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.history .bar-up {
+  fill: var(--pos);
+}
+
+.history .bar-down {
+  fill: var(--neg);
+}
+
+.history .axis {
+  stroke: var(--line);
+}
+
+.history .tick {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.history .hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.history .hover-band {
+  fill: var(--raised);
+}
+
+.history-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 150px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-12);
+  pointer-events: none;
+}
+
+.history-tip[hidden] {
+  display: none;
+}
+
+.history-legend {
+  display: flex;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+  color: var(--muted);
+  font-size: var(--fs-12);
+}
+
+.history-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 1px;
+}
+
+.history-legend .up::before {
+  background: var(--pos);
+}
+
+.history-legend .down::before {
+  background: var(--neg);
+}

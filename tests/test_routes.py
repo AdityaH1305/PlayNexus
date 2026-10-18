@@ -48,7 +48,7 @@ def test_hostile_names_are_escaped_everywhere(client, stub_game):
     html = client.get("/game/1086940").get_data(as_text=True)
     assert "<script>alert(1)</script>" not in html
     # The JS copy of the name round-trips exactly through JSON.
-    m = re.search(r"const GAME = (\{.*?\});", html)
+    m = re.search(r'<script type="application/json" id="page-data">(.*?)</script>', html, re.S)
     assert m and json.loads(m.group(1))["name"] == evil
 
 
@@ -125,3 +125,62 @@ def test_home_renders_without_steam(client, monkeypatch):
     monkeypatch.setattr(charts, "safe", lambda fn, *a, **k: {"updated": None, "rows": [], "error": True})
     r = client.get("/")
     assert r.status_code == 200 and b"Is it worth the money?" in r.data
+
+
+def test_game_page_shows_value_prices_and_meta(client, stub_game):
+    html = client.get("/game/1086940").get_data(as_text=True)
+    assert "Excellent value" in html and "--score: 88" in html
+    assert "₹ 1,999" in html and "Cheapest" in html
+    assert "Steam Deck Verified" in html and "Larian Studios" in html
+    assert "Becomes great value at" in html  # $59.99 is above the $41.50 target
+    assert 'property="og:image" content="https://example.test/header.jpg"' in html
+
+
+def test_game_page_free_and_unpriced_states(client, stub_game):
+    from conftest import make_game
+
+    stub_game["game"] = make_game(is_free=True, usd_price=0.0, prices={
+        "is_free": True, "available": True, "regions": [], "us_usd": 0.0, "reference_usd": 0.0,
+        "cheapest": None, "priciest": None, "fx": {"live": False, "source": "test", "updated": 0}})
+    html = client.get("/game/730").get_data(as_text=True)
+    assert "Free to play in every region." in html
+
+    game = make_game()
+    game["value"] = {**game["value"], "score": None, "label": "No price yet", "worth_it": None}
+    game["prices"] = {**game["prices"], "available": False, "regions": []}
+    game["coming_soon"] = True
+    stub_game["game"] = game
+    html = client.get("/game/1").get_data(as_text=True)
+    assert "No price yet, so no value score" in html
+
+
+def test_live_endpoint_finds_chart_rank(client, monkeypatch):
+    from services import steam
+
+    monkeypatch.setattr(steam, "current_players", lambda appid: 27343)
+    monkeypatch.setattr(steam, "concurrent_chart", lambda: {"ranks": [
+        {"rank": 59, "appid": 1245620, "concurrent_in_game": 27343, "peak_in_game": 40000}]})
+    j = client.get("/api/game/1245620/live").get_json()
+    assert j == {"players": 27343, "rank": 59, "peak_today": 40000}
+
+
+def test_reviews_endpoint_shapes_history(client, monkeypatch):
+    from services import steam
+
+    monkeypatch.setattr(steam, "review_histogram", lambda appid: {
+        "rollup_type": "month",
+        "rollups": [{"date": 1, "recommendations_up": 10, "recommendations_down": 2}],
+        "recent": [{"date": 2, "recommendations_up": 5, "recommendations_down": 1}] * 3,
+    })
+    j = client.get("/api/game/1/reviews").get_json()
+    assert j["points"] == [{"t": 1, "up": 10, "down": 2}]
+    assert j["recent"] == {"up": 15, "down": 3, "days": 3}
+
+
+def test_whereami_maps_countries_and_is_private(client):
+    r = client.get("/api/whereami", headers={"X-Vercel-IP-Country": "FR"})
+    assert r.get_json() == {"country": "FR", "region": "EU"}
+    assert r.headers["Cache-Control"] == "private, no-store"
+    assert client.get("/api/whereami", headers={"X-Vercel-IP-Country": "IN"}).get_json()["region"] == "IN"
+    assert client.get("/api/whereami", headers={"X-Vercel-IP-Country": "NG"}).get_json()["region"] is None
+    assert client.get("/api/whereami").get_json() == {"country": None, "region": None}

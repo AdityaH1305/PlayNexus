@@ -50,7 +50,18 @@ def make_game(**overrides):
         "is_free": False,
         "coming_soon": False,
         "header_image": "https://example.test/header.jpg",
+        "hero_image": "https://example.test/hero.jpg",
         "store_url": "https://store.steampowered.com/app/1086940",
+        "meta": {
+            "developers": ["Larian Studios"], "publishers": ["Larian Studios"], "release": "3 Aug, 2023",
+            "coming_soon": False, "metacritic": 96, "metacritic_url": "https://www.metacritic.com/game/x",
+            "platforms": ["Windows", "macOS"], "website": "https://baldursgate3.game", "genres": ["RPG"],
+            "description": "Gather your party.",
+        },
+        "tags": ["RPG", "Choices Matter", "Story Rich"],
+        "deck": 3,
+        "deck_label": "Verified",
+        "review_label": "Overwhelmingly Positive",
         "prices": {
             "is_free": False, "available": True, "us_usd": 59.99, "reference_usd": 59.99,
             "cheapest": "IN", "priciest": "GB", "fx": {"live": False, "source": "test", "updated": 0},
@@ -73,7 +84,10 @@ def make_game(**overrides):
         },
         "value": {"score": 88, "label": "Excellent value", "breakdown": {
             "effective_hours": 120.0, "hours_per_dollar": 2.0, "cost_per_hour": 0.5,
-            "playtime_pts": 33.0, "positivity_pts": 31.5, "confidence_pts": 10.0, "is_free": False}},
+            "playtime_pts": 33.0, "positivity_pts": 31.5, "confidence_pts": 10.0, "is_free": False},
+            "worth_it": {"great": 41.5, "good": 120.0},
+            "by_region": {"US": {"score": 88, "label": "Excellent value", "cost_per_hour": 0.5},
+                          "IN": {"score": 95, "label": "Excellent value", "cost_per_hour": 0.18}}},
         "vibes": {"top": []},
     }
     game.update(overrides)

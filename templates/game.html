@@ -1,240 +1,263 @@
 {% extends "base.html" %}
-{% block title %}{{ game.name }} — PlayNexus{% endblock %}
+{% import "macros.html" as ui %}
+{% block title %}{{ game.name }}: price, value and vibes — PlayNexus{% endblock %}
+{% block description -%}
+{{ game.name }}{% if game.review_label %}: {{ game.review_label }}{% endif %}.
+{%- if game.value.score is not none %} Value score {{ game.value.score }}/100.{% endif %}
+{%- if game.is_free %} Free to play.{% elif game.prices.us_usd %} {{ game.prices.us_usd|usd }} in the US; compare prices in 16 regions.{% endif %}
+{%- endblock %}
+
+{% block og %}
+<meta property="og:site_name" content="PlayNexus">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ game.name }} — PlayNexus">
+<meta property="og:description" content="{{ self.description() }}">
+{%- if site_url %}<meta property="og:url" content="{{ site_url }}{{ request.path }}">{% endif %}
+{%- if game.header_image %}
+<meta property="og:image" content="{{ game.header_image }}">
+<meta name="twitter:card" content="summary_large_image">
+{%- endif %}
+{% endblock %}
+
+{% macro signed_pct(n) -%}
+{%- if n is none -%}—{%- elif n > 0 -%}+{{ '%.0f'|format(n) }}%{%- elif n < 0 -%}−{{ '%.0f'|format(-n) }}%{%- else -%}0%{%- endif -%}
+{%- endmacro %}
 
 {% block content %}
-{% set name = game.name %}{% set appid = game.appid %}{% set stats = game.reviews %}
-{% set value_score = game.value.score %}{% set value_label = game.value.label %}{% set value_debug = game.value.breakdown %}
-{% set vibe_info = game.vibes %}{% set usd_price = game.usd_price %}{% set store_url = game.store_url %}
-{% set cover_url = game.header_image %}
-<div class="wrap wrap--game">
-  <!-- HERO BANNER -->
-  <section class="hero hero--compact">
-    <img class="hero-bg"
-         src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ appid }}/library_hero.jpg"
-         alt="{{ name }} banner"
-         onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/{{ appid }}/header.jpg'">
-    <div class="hero-bar">
-      <div class="hero-title">
-        <div>{{ name }}</div>
-        <div class="hero-sub">AppID #{{ appid }}</div>
+{% set v = game.value %}{% set b = v.breakdown %}{% set m = game.meta %}{% set r = game.reviews %}
+{% set us = game.prices.regions | selectattr('code', 'equalto', 'US') | first %}
+<article class="game" data-appid="{{ game.appid }}">
+  <div class="wrap">
+    <div class="game-banner">{{ ui.art(game.appid, game.hero_image, 'hero', '', lazy=false) }}</div>
+
+    <header class="game-head">
+      <div class="game-head__main">
+        <h1>{{ game.name }}</h1>
+        <p class="game-head__by">
+          {%- if m.developers %}{{ m.developers|join(', ') }}{% endif -%}
+          {%- if m.publishers and m.publishers != m.developers %} · {{ m.publishers|join(', ') }}{% endif -%}
+          {%- if m.release %} · {% if m.coming_soon %}Coming {{ m.release }}{% else %}Released {{ m.release }}{% endif %}{% endif -%}
+        </p>
+        <ul class="facts">
+          <li>{{ ui.review(game.review_label, (r.positivity * 100) if r.total_reviews >= 10 else none, r.total_reviews) }}{% if r.total_reviews >= 10 %} <span class="muted small num">{{ r.total_reviews|compact }}</span>{% endif %}</li>
+          <li class="fact-live" data-live hidden><span class="live-dot" aria-hidden="true"></span><span class="num" data-live-count></span> playing now<span class="muted" data-live-rank></span></li>
+          {% if game.deck_label %}<li><span class="deck deck--{{ game.deck }}">Steam Deck {{ game.deck_label }}</span></li>{% endif %}
+          {% if m.metacritic %}<li class="small">Metacritic <span class="num">{{ m.metacritic }}</span></li>{% endif %}
+        </ul>
+        {% if game.tags %}<div class="tags">{% for t in game.tags %}{{ ui.tag(t) }}{% endfor %}</div>{% endif %}
       </div>
-      <div class="hero-actions">
-        <button class="btn btn-ghost btn-sm" id="favBtn" onclick="toggleFav()"
-                title="Add to favorites">
-          <span id="favIcon">🤍</span>
-        </button>
-        <button class="btn btn-ghost btn-sm"
-                onclick='addToCompare({{ appid|tojson }}, {{ name|tojson|forceescape }})'
-                title="Add to compare">
-          🆚 Compare
-        </button>
-        <a class="btn btn-primary btn-sm" href="{{ store_url }}" target="_blank" rel="noopener">
-          View on Steam →
-        </a>
+      <div class="game-head__actions">
+        <button class="btn btn--icon btn--fav" type="button" data-fav aria-pressed="false" aria-label="Save to favorites">{{ ui.icon('heart') }}</button>
+        <button class="btn" type="button" data-compare>{{ ui.icon('columns', 'icon--sm') }}Compare</button>
+        <a class="btn btn--primary" href="{{ game.store_url }}" target="_blank" rel="noopener">Open on Steam{{ ui.icon('external', 'icon--sm') }}</a>
       </div>
-    </div>
-  </section>
+    </header>
 
-  <!-- CONTENT GRID — 3 columns on desktop -->
-  <section class="game-grid game-grid--compact">
-    <!-- COL 1: Cover + Value Score -->
-    <div class="game-col game-col--left">
-      <div class="card card-flat card--compact">
-        <div class="cover-wrap cover-wrap--sm">
-          <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ appid }}/library_600x900.jpg"
-               alt="{{ name }} cover portrait"
-               onerror="this.style.display='none'">
-        </div>
+    <div class="game-grid">
+      <div class="game-main">
 
-        <!-- VALUE SCORE -->
-        <div class="value-card value-card--compact">
-          <div class="value-top">
-            <div class="v-badge v-badge--sm">
-              <span class="v-score">{{ value_score if value_score is not none else '—' }}</span>
-              <span>Value</span>
-            </div>
-            <div class="v-label">{{ value_label }}</div>
+        {# ── Value ─────────────────────────────────────── #}
+        <section class="panel value" aria-labelledby="value-title">
+          <div class="panel__head">
+            <h2 id="value-title">Value</h2>
+            {% if v.score is not none %}<button class="btn btn--sm btn--quiet" type="button" data-explain aria-expanded="false" aria-controls="value-explain">How it's worked out</button>{% endif %}
           </div>
-
-          <!-- Breakdown Bars -->
-          <div class="v-bars">
-            <div class="v-bar-row">
-              <span class="v-bar-label">Playtime</span>
-              <div class="v-bar-track">
-                <div class="v-bar-fill playtime" style="width: {{ value_debug.playtime_pts }}%"></div>
+          <div class="panel__body">
+            {% if v.score is none %}
+              <p class="text-2">{% if game.coming_soon %}No price yet, so no value score. Check back when it's out.{% else %}This game isn't for sale on Steam right now, so there's no value score.{% endif %}</p>
+            {% else %}
+            <div class="value__top">
+              <p class="value__score num" data-v-score>{{ v.score }}</p>
+              <div>
+                <p class="value__label" data-v-label>{{ v.label }}</p>
+                <p class="value__basis small muted" data-v-basis>{% if game.is_free %}Free to play{% else %}At the US price of {{ game.usd_price|usd }}{% endif %}</p>
               </div>
-              <span class="v-bar-val">{{ value_debug.playtime_pts }}%</span>
             </div>
-            <div class="v-bar-row">
-              <span class="v-bar-label">Positivity</span>
-              <div class="v-bar-track">
-                <div class="v-bar-fill positivity" style="width: {{ value_debug.positivity_pts }}%"></div>
+            <div class="meter" data-meter style="--score: {{ v.score }}" role="img" aria-label="Value score {{ v.score }} out of 100">
+              <div class="meter__track"><span class="meter__needle"></span></div>
+              <div class="meter__scale" aria-hidden="true">
+                <span style="--at: 0">0</span>
+                {% for at, name in [(40, 'Fair'), (55, 'Good'), (70, 'Great'), (85, 'Excellent')] %}<span style="--at: {{ at }}">{{ name }}</span>{% endfor %}
               </div>
-              <span class="v-bar-val">{{ value_debug.positivity_pts }}%</span>
             </div>
-            <div class="v-bar-row">
-              <span class="v-bar-label">Confidence</span>
-              <div class="v-bar-track">
-                <div class="v-bar-fill confidence" style="width: {{ value_debug.confidence_pts }}%"></div>
+            <dl class="value__facts">
+              <div><dt>Typical playtime</dt><dd class="num">{{ b.effective_hours|hours if b.effective_hours else '—' }}</dd></div>
+              <div><dt>Cost per hour</dt><dd class="num" data-v-cph>{% if game.is_free %}Free{% elif b.cost_per_hour %}{{ b.cost_per_hour|usd }}{% else %}—{% endif %}</dd></div>
+              <div><dt>Positive reviews</dt><dd class="num">{% if r.total_reviews >= 10 %}{{ (r.positivity * 100)|round|int }}%{% else %}—{% endif %}</dd></div>
+            </dl>
+            {% set wi = v.worth_it %}
+            {% if wi %}
+            <p class="value__worth">
+              {%- if wi.great and wi.great >= 200 -%}Great value at almost any price.
+              {%- elif wi.great -%}
+                {%- if game.usd_price and game.usd_price <= wi.great -%}Already great value at the US price.
+                {%- else -%}Becomes great value at <strong class="num">{{ wi.great|usd }}</strong> or less{% if game.usd_price %}, so it's worth waiting for a sale{% endif %}.{%- endif -%}
+              {%- elif wi.good -%}Good value at <strong class="num">{{ wi.good|usd }}</strong> or less, but it can't reach great value at any price.
+              {%- else -%}Not good value at any price: reviews are too mixed or playtime is too short.
+              {%- endif -%}
+            </p>
+            {% endif %}
+            <div class="value__explain" id="value-explain" hidden>
+              <div class="breakdown">
+                {% for label, pts, max in [('Hours of play per dollar', b.playtime_pts, 55), ('How positive reviews are', b.positivity_pts, 35), ('How many reviews there are', b.confidence_pts, 10)] %}
+                <div class="breakdown__row">
+                  <span class="breakdown__label">{{ label }}</span>
+                  <span class="breakdown__bar"><span style="width: {{ (pts / max * 100)|round(1) }}%"></span></span>
+                  <span class="breakdown__pts num">{{ pts|round|int }}<span class="muted">/{{ max }}</span></span>
+                </div>
+                {% endfor %}
               </div>
-              <span class="v-bar-val">{{ value_debug.confidence_pts }}%</span>
+              <p class="small text-2">The score adds up three things. Hours of play per dollar is worth up to 55 points, on a log scale so a 200-hour game isn't treated as twice as good as a 100-hour one. How far reviews sit above 60% positive is worth up to 35. The number of reviews is worth up to 10, so a handful of glowing reviews can't carry a game. Playtime is the typical playtime of people who reviewed it.</p>
             </div>
+            {% endif %}
           </div>
+        </section>
 
-          <!-- Stat Chips -->
-          <div class="v-grid v-grid--compact">
-            <div class="v-chip">
-              <div class="label">Playtime</div>
-              <div><strong>{{ '%.1f' % value_debug.effective_hours }}</strong> hrs</div>
-            </div>
-            <div class="v-chip">
-              <div class="label">Positive</div>
-              <div><strong>{{ '%.0f' % (stats.positivity * 100) }}%</strong></div>
-            </div>
-            <div class="v-chip">
-              <div class="label">Price</div>
-              <div><strong>{% if game.is_free %}Free{% elif usd_price %}${{ '%.2f' % usd_price }}{% else %}—{% endif %}</strong></div>
-            </div>
+        {# ── Prices around the world ───────────────────── #}
+        <section class="panel" aria-labelledby="prices-title">
+          <div class="panel__head">
+            <h2 id="prices-title">Prices around the world</h2>
+            <label class="region-pick">
+              <span class="small muted">Your region</span>
+              <select class="select select--sm" data-region-select>
+                <option value="">Not set</option>
+                {% for reg in config_regions %}<option value="{{ reg.code }}">{{ reg.name }}</option>{% endfor %}
+              </select>
+            </label>
           </div>
-
-          <!-- Review Trend -->
-          <div class="review-trend review-trend--compact">
-            <div class="trend-box">
-              <div class="trend-label">Overall</div>
-              {% set overall_pct = (stats.positivity * 100)|int %}
-              <div class="trend-val {% if overall_pct >= 70 %}positive{% elif overall_pct >= 50 %}neutral{% else %}negative{% endif %}">
-                {{ overall_pct }}%
-              </div>
-            </div>
-            <div class="trend-box">
-              <div class="trend-label">Recent</div>
-              {% set recent_pct = (stats.recent_positivity * 100)|int %}
-              <div class="trend-val {% if recent_pct >= 70 %}positive{% elif recent_pct >= 50 %}neutral{% else %}negative{% endif %}">
-                {{ recent_pct }}%
-              </div>
-            </div>
-            <div class="trend-box">
-              <div class="trend-label">Trend</div>
-              {% set diff = recent_pct - overall_pct %}
-              <div class="trend-val {% if diff > 2 %}positive{% elif diff < -2 %}negative{% else %}neutral{% endif %}">
-                {% if diff > 0 %}+{{ diff }} pts{% elif diff < 0 %}{{ diff }} pts{% else %}Same{% endif %}
-              </div>
-            </div>
+          {% if game.is_free %}
+            <div class="panel__body"><p class="text-2">Free to play in every region.</p></div>
+          {% elif not game.prices.available %}
+            <div class="panel__body"><p class="text-2">{% if game.coming_soon %}Steam hasn't published a price yet.{% else %}Not on sale in any region we track.{% endif %}</p></div>
+          {% else %}
+          <div class="table-wrap">
+            <table class="table price-table">
+              <thead>
+                <tr>
+                  <th scope="col">Region</th>
+                  <th scope="col" class="num">Price</th>
+                  <th scope="col" class="num">In US$</th>
+                  <th scope="col" class="num">vs US</th>
+                  <th scope="col" class="hide-sm strip-head"><span class="sr-only">Compared with the US price</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in price_rows %}
+                <tr data-region="{{ row.code }}">
+                  <td class="region-cell">
+                    {{ ui.region_chip(row.code) }}<span class="region-name">{{ row.name }}</span>
+                    {%- if row.is_cheapest %} <span class="flag-note flag-note--accent">Cheapest</span>{% endif %}
+                    {%- if row.usd_priced %} <span class="flag-note flag-note--quiet" title="Steam prices this region in US dollars">USD</span>{% endif %}
+                  </td>
+                  <td class="num nowrap">
+                    {%- if row.available -%}
+                      {%- if row.discount and row.initial_formatted %}<s class="muted small">{{ row.initial_formatted }}</s> {% endif -%}
+                      {{ row.final_formatted }}
+                    {%- else -%}<span class="muted">{{ "Couldn't load" if row.error else "Not sold" }}</span>{%- endif -%}
+                  </td>
+                  <td class="num">{{ row.usd|usd if row.usd else '—' }}</td>
+                  {% set pct = row.vs_us_pct if row.vs_us_pct is defined else none %}
+                  <td class="num {% if pct is not none and pct < -2 %}pos{% elif pct is not none and pct > 2 %}neg{% else %}muted{% endif %}">{{ signed_pct(pct) }}</td>
+                  <td class="hide-sm strip-cell">
+                    {%- if row.usd -%}
+                    <span class="strip" aria-hidden="true">
+                      {%- if us_x is not none %}<span class="strip__us" style="--x: {{ us_x }}"></span>{% endif -%}
+                      <span class="strip__dot strip__dot--{% if pct is not none and pct < -2 %}pos{% elif pct is not none and pct > 2 %}neg{% else %}even{% endif %}" style="--x: {{ strip[row.code] }}"></span>
+                    </span>
+                    {%- endif -%}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
+          <p class="panel__foot">Converted at mid-market rates ({{ game.prices.fx.source }}{% if game.prices.fx.updated %}, {{ game.prices.fx.updated|date('day') }}{% endif %}). The line in each bar is the US price. Steam ties purchases to your account's country, so this is for comparison.</p>
+          {% endif %}
+        </section>
 
-          <!-- Vibes -->
-          <div class="vibes-row">
-            {% for t in vibe_info.top %}
-              <span class="badge-outline badge">{{ t.emoji }} {{ t.label }} <strong>{{ t.score }}</strong></span>
+        {# ── Reviews over time ─────────────────────────── #}
+        {% if r.total_reviews >= 10 %}
+        <section class="panel" aria-labelledby="history-title">
+          <div class="panel__head">
+            <h2 id="history-title">Reviews over time</h2>
+            <span class="small muted" data-history-summary></span>
+          </div>
+          <div class="panel__body">
+            <div class="history" data-history>{{ ui.skeleton_rows(3) }}</div>
+          </div>
+        </section>
+        {% endif %}
+      </div>
+
+      <aside class="game-side">
+
+        {# ── Price check ───────────────────────────────── #}
+        <section class="panel" aria-labelledby="pc-title">
+          <div class="panel__head"><h2 id="pc-title">Price check</h2></div>
+          <div class="panel__body price-check">
+            <div class="price-now">
+              <p class="eyebrow" data-your-label>{% if game.is_free %}Price{% else %}United States{% endif %}</p>
+              <p class="price-now__value num" data-your-price>
+                {%- if game.is_free %}Free{% elif us and us.available %}{{ us.final_formatted }}{% elif game.prices.available %}{{ game.prices.reference_usd|usd }}{% else %}—{% endif -%}
+              </p>
+              {% if us and us.discount %}<p class="small"><span class="discount">−{{ us.discount }}%</span> <s class="muted">{{ us.initial_formatted }}</s> on sale now</p>{% endif %}
+            </div>
+            {% if not game.is_free %}
+            <div class="deals" data-deals>{{ ui.skeleton_rows(2) }}</div>
+            {% endif %}
+          </div>
+        </section>
+
+        {# ── Vibes ─────────────────────────────────────── #}
+        {% set top_vibes = (game.vibes.top or [])[:4] %}
+        {% if top_vibes %}
+        <section class="panel" aria-labelledby="vibes-title">
+          <div class="panel__head"><h2 id="vibes-title">What it feels like</h2></div>
+          <div class="panel__body vibes">
+            {% for t in top_vibes %}
+            <div class="vibe">
+              <div class="vibe__head"><span class="vibe__label">{{ t.label }}</span><span class="num muted small">{{ t.score }}</span></div>
+              <span class="vibe__bar"><span style="width: {{ t.score }}%"></span></span>
+              {% if t.why %}<p class="vibe__why small muted">{{ t.why }}</p>{% endif %}
+            </div>
             {% endfor %}
           </div>
-        </div>
-      </div>
-    </div>
+        </section>
+        {% endif %}
 
-    <!-- COL 2: Prices -->
-    <div class="game-col game-col--mid">
-      <div class="prices-card prices-card--compact">
-        <h2>🌍 Regional Prices</h2>
+        {# ── Similar games ─────────────────────────────── #}
+        <section class="panel" aria-labelledby="similar-title">
+          <div class="panel__head"><h2 id="similar-title">Similar games</h2></div>
+          <div class="panel__body similar" data-similar>{{ ui.skeleton_rows(4) }}</div>
+        </section>
 
-        <div class="prices-scroll">
-          <div class="price-row header">
-            <div>Region</div>
-            <div>Price</div>
-            <div class="hide-mobile">Currency</div>
-            <div class="hide-mobile">vs USD</div>
-            <div>Discount</div>
+        {# ── About ─────────────────────────────────────── #}
+        <section class="panel" aria-labelledby="about-title">
+          <div class="panel__head"><h2 id="about-title">About</h2></div>
+          <div class="panel__body about">
+            {% if m.description %}<p>{{ m.description }}</p>{% endif %}
+            <dl class="about__list">
+              {% if m.developers %}<div><dt>Developer</dt><dd>{{ m.developers|join(', ') }}</dd></div>{% endif %}
+              {% if m.publishers %}<div><dt>Publisher</dt><dd>{{ m.publishers|join(', ') }}</dd></div>{% endif %}
+              {% if m.release %}<div><dt>{{ 'Release' if m.coming_soon else 'Released' }}</dt><dd>{{ m.release }}</dd></div>{% endif %}
+              {% if m.platforms %}<div><dt>Platforms</dt><dd>{{ m.platforms|join(', ') }}</dd></div>{% endif %}
+              {% if m.genres %}<div><dt>Genres</dt><dd>{{ m.genres|join(', ') }}</dd></div>{% endif %}
+              <div><dt>App ID</dt><dd class="num">{{ game.appid }}</dd></div>
+            </dl>
+            <p class="about__links small">
+              <a href="{{ game.store_url }}" target="_blank" rel="noopener">Steam store</a>
+              {%- if m.website %} · <a href="{{ m.website }}" target="_blank" rel="noopener nofollow">Website</a>{% endif %}
+              {%- if m.metacritic_url %} · <a href="{{ m.metacritic_url }}" target="_blank" rel="noopener">Metacritic</a>{% endif %}
+            </p>
           </div>
-
-          {% if game.is_free %}
-          <div class="price-row"><div class="region-cell"><span>Every region</span></div><div class="price-cell"><span class="free-tag">Free to play</span></div></div>
-          {% endif %}
-          {% for p in game.prices.regions %}
-          <div class="price-row {% if p.is_cheapest %}cheapest{% endif %}">
-            <div class="region-cell">
-              <span class="flag" style="font-size:12px;font-weight:700;">{{ p.code }}</span>
-              <span>{{ p.name }}</span>
-              {% if p.is_cheapest %}<span class="badge badge-green" style="font-size:10px;">Cheapest</span>{% endif %}
-            </div>
-            <div class="price-cell">
-              {% if not p.available %}
-                <span style="color:var(--muted);">{{ "Couldn't load" if p.error else "Not sold" }}</span>
-              {% else %}
-                {% if p.discount and p.initial_formatted %}<span class="strike">{{ p.initial_formatted }}</span>{% endif %}
-                <strong>{{ p.final_formatted }}</strong>
-              {% endif %}
-            </div>
-            <div class="hide-mobile">{{ p.currency or '—' }}</div>
-            <div class="hide-mobile">
-              {% if p.vs_us_pct is not none and p.vs_us_pct is defined %}
-                {% if p.vs_us_pct < -1 %}<span class="vs-usd cheaper">{{ '%.1f' % p.vs_us_pct }}%</span>
-                {% elif p.vs_us_pct > 1 %}<span class="vs-usd pricier">+{{ '%.1f' % p.vs_us_pct }}%</span>
-                {% else %}<span class="vs-usd same">≈ same</span>{% endif %}
-              {% else %}—{% endif %}
-            </div>
-            <div>{% if p.discount %}<span class="badge">-{{ p.discount }}%</span>{% else %}—{% endif %}</div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
+        </section>
+      </aside>
     </div>
-
-    <!-- COL 3: Similar Games -->
-    <div class="game-col game-col--right">
-      <div class="recs-panel">
-        <h2 class="section-title section-title--compact">🎮 Similar Games</h2>
-        <div id="recs-container" class="recs-container--compact">
-          <div class="recs-stack">
-            <div class="skeleton skeleton-card" style="height:60px;"></div>
-            <div class="skeleton skeleton-card" style="height:60px;"></div>
-            <div class="skeleton skeleton-card" style="height:60px;"></div>
-            <div class="skeleton skeleton-card" style="height:60px;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
+  </div>
+</article>
+<script type="application/json" id="page-data">{{ page_data|tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  // Track recently viewed
-  const GAME = {{ {"appid": game.appid, "name": game.name, "cover": game.header_image}|tojson }};
-  addRecentlyViewed(GAME.appid, GAME.name, GAME.cover);
-
-  // Favorite button state
-  const favBtn = document.getElementById('favBtn');
-  const favIcon = document.getElementById('favIcon');
-  if (isFavorite(GAME.appid)) favIcon.textContent = '❤️';
-
-  function toggleFav() {
-    const active = toggleFavorite(GAME.appid, GAME.name, GAME.cover);
-    favIcon.textContent = active ? '❤️' : '🤍';
-  }
-
-  // Lazy load recommendations — compact vertical cards
-  cachedFetch('/api/recommendations/' + GAME.appid)
-    .then(items => {
-      const container = document.getElementById('recs-container');
-      if (!items.length) {
-        container.innerHTML = '<p style="color:var(--muted);font-size:12px;">No similar games found.</p>';
-        return;
-      }
-      container.innerHTML = '<div class="recs-stack">' + items.slice(0, 8).map(g => `
-        <a href="/game/${g.appid}" class="rec-card rec-card--row" title="${escapeHtml(g.name)}">
-          <img src="${g.cover}" alt="${escapeHtml(g.name)}" loading="lazy"
-               onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/${g.appid}/header.jpg'">
-          <div class="rec-info">
-            <div class="rec-name">${escapeHtml(g.name)}</div>
-            <div class="rec-reason">${escapeHtml(g.match_reason)}</div>
-          </div>
-        </a>
-      `).join('') + '</div>';
-    })
-    .catch(() => {
-      document.getElementById('recs-container').innerHTML =
-        '<p style="color:var(--muted);font-size:12px;">Could not load recommendations.</p>';
-    });
-</script>
+<script type="module" src="{{ asset_url('js/pages/game.js') }}"></script>
 {% endblock %}
