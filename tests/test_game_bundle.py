@@ -49,6 +49,28 @@ def test_pool_playtime_fills_the_gap(steam_down, monkeypatch):
     assert g["value"]["breakdown"]["effective_hours"] == 30.0
 
 
+def test_dlc_pages_link_the_base_game_and_skip_the_value_score(steam_down, monkeypatch):
+    monkeypatch.setattr(steam, "appdetails", lambda appid, cc="us": {
+        "name": "ELDEN RING Shadow of the Erdtree", "is_free": False, "type": "dlc",
+        "fullgame": {"appid": "1245620", "name": "ELDEN RING"}})
+    known = {"hours": {"p50_all": 300.0, "p50_recent": 0.0, "p75_recent": 0.0}}
+    monkeypatch.setattr(pool, "get", lambda appid: known)
+    monkeypatch.setattr(pool, "has_hours", lambda g: True)
+    g = game_service.load_game(2778580)
+    assert g["is_dlc"] and g["base_game"] == {"appid": 1245620, "name": "ELDEN RING"}
+    assert g["value"]["score"] is None and g["value"]["label"] == "DLC"
+    assert g["value"]["worth_it"] is None and g["value"]["by_region"] == {}
+
+
+def test_dlc_page_renders_base_game_link(client, monkeypatch):
+    monkeypatch.setattr(game_service, "load_game", lambda appid: make_game(
+        is_dlc=True, base_game={"appid": 1245620, "name": "ELDEN RING"},
+        value={**make_game()["value"], "score": None, "label": "DLC", "worth_it": None, "by_region": {}}))
+    html = client.get("/game/2778580").get_data(as_text=True)
+    assert 'href="/game/1245620"' in html and "DLC" in html
+    assert "Value scores are for full games" in html
+
+
 def test_degraded_pages_are_cached_briefly(client, monkeypatch):
     monkeypatch.setattr(game_service, "load_game", lambda appid: make_game(degraded=True))
     r = client.get("/game/1086940")

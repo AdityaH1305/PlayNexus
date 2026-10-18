@@ -32,6 +32,9 @@
 
     <header class="game-head">
       <div class="game-head__main">
+        {% if game.is_dlc %}
+        <p class="eyebrow">DLC{% if game.base_game %} for <a href="{{ url_for('pages.game_page', appid=game.base_game.appid) }}">{{ game.base_game.name }}</a>{% endif %}</p>
+        {% endif %}
         <h1>{{ game.name }}</h1>
         <p class="game-head__by">
           {%- if m.developers %}{{ m.developers|join(', ') }}{% endif -%}
@@ -68,7 +71,8 @@
           <div class="panel__body">
             {% if v.score is none %}
               <p class="text-2">
-                {%- if game.coming_soon and not game.prices.available %}No price yet, so no value score. Check back when it's out.
+                {%- if game.is_dlc %}Value scores are for full games. People reviewing DLC report their playtime in the base game, which would make the DLC look better than it is.{% if game.base_game %} See <a href="{{ url_for('pages.game_page', appid=game.base_game.appid) }}">{{ game.base_game.name }}</a> for its value score.{% endif %}
+                {%- elif game.coming_soon and not game.prices.available %}No price yet, so no value score. Check back when it's out.
                 {%- elif not game.is_free and not game.prices.available %}This game isn't for sale on Steam right now, so there's no value score.
                 {%- else %}Steam didn't send enough review data to score this just now. Try again in a few minutes.{% endif -%}
               </p>

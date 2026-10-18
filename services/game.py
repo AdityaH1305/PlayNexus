@@ -57,6 +57,13 @@ def load_game(appid: int) -> dict[str, Any] | None:
 
     is_free = bool(details.get("is_free"))
     meta = _meta(details)
+    is_dlc = details.get("type") == "dlc"
+    fullgame = details.get("fullgame") or {}
+    base_game = (
+        {"appid": int(fullgame["appid"]), "name": fullgame.get("name") or "the base game"}
+        if is_dlc and str(fullgame.get("appid", "")).isdigit()
+        else None
+    )
     item_future = executor.submit(_store_item, appid)
     price_futures = None if is_free else pricing.submit_regional(appid)
     review_futures = reviews.submit_review_calls(appid)
@@ -92,6 +99,10 @@ def load_game(appid: int) -> dict[str, Any] | None:
     score, label, breakdown = value_score.compute_value_score(usd, stats, is_free=is_free)
     if not enough_data and score is not None:
         score, label = None, "Not enough data"
+    if is_dlc:
+        # DLC reviewers' playtime is their base-game playtime, which would
+        # flatter the DLC; value scores are for full games.
+        score, label = None, "DLC"
 
     worth_it = None
     if score is not None and not is_free and stats["total_reviews"]:
@@ -111,6 +122,8 @@ def load_game(appid: int) -> dict[str, Any] | None:
         "appid": appid,
         "name": details.get("name") or (item or {}).get("name") or f"App {appid}",
         "degraded": degraded,
+        "is_dlc": is_dlc,
+        "base_game": base_game,
         "details": details,
         "meta": meta,
         "is_free": is_free,

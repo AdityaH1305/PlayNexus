@@ -102,9 +102,9 @@ Snapshots in `data/` ship with the app so pages never wait on slow sources. Refr
 | `python scripts/build_data.py fx` | `data/fx_fallback.json`: exchange rates used if the live feed is down | No |
 | `python scripts/build_data.py tags` | `data/tags.json`: Steam tag names | No |
 | `python scripts/build_data.py pool` | `data/pool.json`: ~1,000 well-reviewed games with tags and measured playtime, used by Discover, Similar games and the value scores on Deals | No |
-| `python scripts/build_data.py index` | `data/search_index.json.gz`: games-only search index with popularity (replaces the old 25 MB `games.json`) | Yes |
+| `python scripts/build_data.py index` | `data/search_index.json.gz`: every game plus real expansions (DLC with 500+ reviews; soundtracks, cosmetics and packs left out), ranked by popularity | Yes |
 
-Steam rate-limits review requests, so `pool` measures playtime gently and stops when Steam pushes back. Run it again later to fill in the rest. It resumes from `.cache/`.
+Steam rate-limits review requests, so `pool` measures playtime gently and stops when Steam pushes back. Run it again later to fill in the rest. It resumes from `.cache/`. The `index` step takes about half an hour and also resumes if interrupted.
 
 ## Deploying
 

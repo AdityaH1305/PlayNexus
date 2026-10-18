@@ -28,8 +28,8 @@ sys.path.insert(0, ROOT)
 from config import Config  # noqa: E402
 from services import steam  # noqa: E402
 from services.fx import FX_URL  # noqa: E402
-from services.http import UpstreamError, get_json  # noqa: E402
-from services.search import is_junk_name  # noqa: E402
+from services.http import UpstreamError, chunks, get_json  # noqa: E402
+from services.search import is_junk_name, is_minor_dlc_name  # noqa: E402
 
 DATA = Config.DATA_DIR
 CACHE = os.path.join(ROOT, ".cache")
@@ -87,13 +87,13 @@ def build_tags() -> None:
 
 # ── Search index ──────────────────────────────────────────
 
-def _app_list_page(key: str, last_appid: int) -> dict:
+def _app_list_page(key: str, last_appid: int, kind: str = "games") -> dict:
     return get_json(
         "https://api.steampowered.com/IStoreService/GetAppList/v1/",
         {
             "key": key,
-            "include_games": "true",
-            "include_dlc": "false",
+            "include_games": "true" if kind == "games" else "false",
+            "include_dlc": "true" if kind == "dlc" else "false",
             "include_software": "false",
             "include_videos": "false",
             "include_hardware": "false",
@@ -104,62 +104,107 @@ def _app_list_page(key: str, last_appid: int) -> dict:
     )
 
 
-def fetch_games(key: str) -> list[dict]:
+def fetch_apps(key: str, kind: str = "games") -> list[dict]:
+    """Every app of one *kind* ("games" or "dlc") on the Steam store."""
+    prefix = "applist" if kind == "games" else "applist_dlc"
     apps: list[dict] = []
     last = 0
     page = 0
     while True:
-        resp = _cached(f"applist_{last}.json", lambda: _app_list_page(key, last)).get("response") or {}
+        resp = _cached(f"{prefix}_{last}.json", lambda: _app_list_page(key, last, kind)).get("response") or {}
         batch = resp.get("apps") or []
         apps.extend(batch)
         page += 1
-        print(f"  app list page {page}: {len(batch)} apps (total {len(apps)})")
+        print(f"  {kind} list page {page}: {len(batch)} (total {len(apps)})", flush=True)
         if not resp.get("have_more_results") or not batch:
             return apps
         last = resp.get("last_appid") or batch[-1]["appid"]
 
 
-def fetch_review_counts(appids: list[int]) -> dict[int, int]:
-    """Review counts via batched store items, 50 apps per call, resumable."""
+def _review_counts_raw(appids: list[int]) -> dict[int, int]:
+    """Review counts for up to 50 apps straight from the API (raises on failure)."""
+    payload = {
+        "ids": [{"appid": a} for a in appids],
+        "context": {"language": "english", "country_code": "US"},
+        "data_request": {"include_reviews": True},
+    }
+    params = {"input_json": json.dumps(payload, separators=(",", ":"))}
+    if Config.STEAM_API_KEY:
+        params["key"] = Config.STEAM_API_KEY
+    data = get_json(f"{steam.WEBAPI}/IStoreBrowseService/GetItems/v1/", params, timeout=30)
+    out: dict[int, int] = {}
+    for item in ((data or {}).get("response") or {}).get("store_items") or []:
+        if item.get("success") == 1 and item.get("appid"):
+            summary = (item.get("reviews") or {}).get("summary_filtered") or {}
+            out[int(item["appid"])] = int(summary.get("review_count") or 0)
+    return out
+
+
+def _counts_with_retry(part: list[int]) -> dict[int, int]:
+    for attempt in range(6):
+        try:
+            got = _review_counts_raw(part)
+            time.sleep(0.2)
+            return got
+        except UpstreamError as exc:
+            wait = 30 * (attempt + 1) if "429" in str(exc) else 5
+            print(f"    {exc}; waiting {wait}s", flush=True)
+            time.sleep(wait)
+    raise SystemExit("Steam keeps refusing. Progress is saved; run the index step again later.")
+
+
+def fetch_review_counts(appids: list[int], prefix: str = "reviews") -> dict[int, int]:
+    """Review counts, 50 apps per call (4 at a time), saved every 500 so a
+    rerun resumes.
+
+    Only successful batches are saved: a rate-limited response must never be
+    recorded as "no reviews", or those games would sink in search for good.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     counts: dict[int, int] = {}
     batches = [appids[i : i + 500] for i in range(0, len(appids), 500)]
-    for n, batch in enumerate(batches, 1):
-        def produce(batch=batch):
-            got = {}
-            for attempt in range(3):
-                try:
-                    items = steam.store_items(batch)
-                    break
-                except UpstreamError as exc:  # pragma: no cover - network
-                    print(f"    retrying after error: {exc}")
-                    time.sleep(5 * (attempt + 1))
-            else:
-                items = {}
-            for appid, item in items.items():
-                if item:
-                    got[str(appid)] = item["review_count"]
-            time.sleep(0.5)
-            return got
-        part = _cached(f"reviews_{batch[0]}_{len(batch)}.json", produce)
-        counts.update({int(k): v for k, v in part.items()})
-        if n % 20 == 0 or n == len(batches):
-            print(f"  review counts: {n}/{len(batches)} batches")
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for n, batch in enumerate(batches, 1):
+            path = os.path.join(CACHE, f"{prefix}_{batch[0]}_{len(batch)}.json")
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    counts.update({int(k): v for k, v in json.load(f).items()})
+                continue
+            got: dict[int, int] = {}
+            for part in pool.map(_counts_with_retry, list(chunks(batch, 50))):
+                got.update(part)
+            os.makedirs(CACHE, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({str(k): v for k, v in got.items()}, f)
+            counts.update(got)
+            if n % 10 == 0 or n == len(batches):
+                print(f"  {prefix}: {n}/{len(batches)} batches", flush=True)
     return counts
 
 
+MIN_DLC_REVIEWS = 500  # expansions people actually bought and reviewed
+
+
 def build_index() -> None:
+    """Games, plus DLC that's a real expansion (not soundtracks or cosmetic
+    packs) and that at least MIN_DLC_REVIEWS people have reviewed."""
     key = Config.STEAM_API_KEY
     if not key:
         raise SystemExit("STEAM_API_KEY is not set (see .env.example)")
     print("Search index")
-    games = [g for g in fetch_games(key) if g.get("name") and not is_junk_name(g["name"])]
-    print(f"  {len(games)} games after filtering")
-    counts = fetch_review_counts([g["appid"] for g in games])
-    rows = []
-    for g in games:
-        reviews = counts.get(g["appid"], 0)
-        pop = round(math.log10(reviews + 1), 2)
-        rows.append([g["appid"], g["name"], pop])
+    games = [g for g in fetch_apps(key, "games") if g.get("name") and not is_junk_name(g["name"])]
+    print(f"  {len(games)} games after filtering", flush=True)
+    counts = fetch_review_counts([g["appid"] for g in games], "reviews")
+
+    dlc = [d for d in fetch_apps(key, "dlc") if d.get("name") and not is_minor_dlc_name(d["name"])]
+    print(f"  {len(dlc)} DLC left after dropping soundtracks, cosmetics and packs", flush=True)
+    dlc_counts = fetch_review_counts([d["appid"] for d in dlc], "dlcreviews")
+    expansions = [d for d in dlc if dlc_counts.get(d["appid"], 0) >= MIN_DLC_REVIEWS]
+    print(f"  {len(expansions)} DLC with at least {MIN_DLC_REVIEWS} reviews kept", flush=True)
+
+    rows = [[g["appid"], g["name"], round(math.log10(counts.get(g["appid"], 0) + 1), 2), 0] for g in games]
+    rows += [[d["appid"], d["name"], round(math.log10(dlc_counts[d["appid"]] + 1), 2), 1] for d in expansions]
     rows.sort(key=lambda r: -r[2])
     _write_json(os.path.join(DATA, "search_index.json.gz"), rows, gz=True)
 

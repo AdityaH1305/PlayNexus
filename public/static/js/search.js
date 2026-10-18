@@ -127,7 +127,9 @@ export class Combobox {
       return html`${group}<li class="option" role="option" id="${id}" data-index="${i}" aria-selected="false">
         <span class="option__art">${artImg(it.appid, it.image, "capsule")}</span>
         <span class="option__name">${raw(highlight(it.name, q))}</span>
-        <span class="option__aside num">${it.appid}</span></li>`;
+        ${it.dlc
+          ? html`<span class="option__aside"><span class="flag-note flag-note--quiet">DLC</span></span>`
+          : html`<span class="option__aside num">${it.appid}</span>`}</li>`;
     });
     setHTML(this.list, rows);
     this.open();

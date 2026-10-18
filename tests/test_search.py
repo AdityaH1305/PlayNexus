@@ -3,6 +3,8 @@ import pytest
 from services import search
 
 GAMES = [
+    (1245620, "ELDEN RING", 5.9),
+    (2778580, "ELDEN RING Shadow of the Erdtree", 4.9, 1),
     (367520, "Hollow Knight", 5.6),
     (2261140, "Hollow", 0.8),
     (1086940, "Baldur's Gate 3", 5.8),
@@ -52,6 +54,36 @@ def test_empty_and_unknown_queries():
 
 def test_find_appid_by_name_uses_ranking():
     assert search.find_appid_by_name("hollow") == 367520
+
+
+def test_base_game_outranks_its_dlc_unless_the_dlc_is_named():
+    base = search.find_matches("elden ring", 2)
+    assert [h["name"] for h in base] == ["ELDEN RING", "ELDEN RING Shadow of the Erdtree"]
+    assert base[0]["dlc"] is False and base[1]["dlc"] is True
+    assert top("shadow of the erdtree") == "ELDEN RING Shadow of the Erdtree"
+
+
+@pytest.mark.parametrize("name,minor", [
+    ("ELDEN RING Shadow of the Erdtree", False),
+    ("Cyberpunk 2077: Phantom Liberty", False),
+    ("The Witcher 3: Wild Hunt - Blood and Wine", False),
+    ("Sid Meier's Civilization® VI: Gathering Storm", False),
+    ("The Sims™ 4 Cottage Living Expansion Pack", False),
+    ("Dead by Daylight - Resident Evil Chapter", False),
+    ("ELDEN RING Bonus Gesture", True),
+    ("Hollow Knight Original Soundtrack", True),
+    ("Civilization VI - Babylon Pack", True),
+    ("Sims 4 Grunge Revival Kit", True),
+    ("DOOM Eternal: Year One Pass", False),
+    ("Game X - Digital Deluxe Upgrade", True),
+    ("Game X Season Pass", True),
+    ("Game X - Adventure Pack: Desert", True),
+    ("Game X - Legendary Skin Bundle", True),
+    ("Game X Artbook", True),
+    ("Game X - 1000 Coins", True),
+])
+def test_minor_dlc_filter(name, minor):
+    assert search.is_minor_dlc_name(name) is minor
 
 
 @pytest.mark.parametrize("name,junk", [

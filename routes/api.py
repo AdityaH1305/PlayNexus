@@ -54,6 +54,8 @@ def api_game(appid: int):
         "store_url": g["store_url"],
         "is_free": g["is_free"],
         "coming_soon": g["coming_soon"],
+        "is_dlc": g["is_dlc"],
+        "base_game": g["base_game"],
         "prices": prices,
         "cheapest_region": cheapest,
         "usd_price": g["usd_price"],

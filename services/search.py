@@ -66,6 +66,35 @@ def is_junk_name(name: str) -> bool:
     return _is_junk_norm(_normalize(name))
 
 
+# DLC that's filler rather than an expansion. The first group is never an
+# expansion; the second is a pack of bits unless the name says "expansion"
+# (The Sims names its expansions "… Expansion Pack").
+_MINOR_DLC_WORDS = frozenset({
+    "soundtrack", "soundtracks", "ost", "music", "song", "songs", "artbook", "wallpaper", "wallpapers",
+    "gesture", "gestures", "emote", "emotes", "sticker", "stickers", "avatar", "avatars", "skin", "skins",
+    "costume", "costumes", "outfit", "outfits", "cosmetic", "cosmetics", "upgrade", "coins", "gems",
+    "credits", "currency", "booster", "boosters", "supporter", "donation", "livery", "liveries", "camo",
+    "decal", "decals", "ringtone", "nameplate", "voicepack",
+})
+_MINOR_DLC_PHRASES = (
+    "season pass", "art book", "bonus content", "digital deluxe", "deluxe edition", "pre order",
+    "preorder", "pre purchase", "starter", "founder", "profile background", "paint job", "shark card",
+    "xp boost", "voice pack", "original score",
+)
+_PACK_WORDS = frozenset({"pack", "packs", "kit", "bundle", "set", "collection", "dlc"})
+
+
+def is_minor_dlc_name(name: str) -> bool:
+    """True for soundtracks, cosmetics, packs and similar DLC filler."""
+    norm = _normalize(name)
+    words = set(norm.split())
+    if _is_junk_norm(norm) or not _MINOR_DLC_WORDS.isdisjoint(words):
+        return True
+    if any(p in norm for p in _MINOR_DLC_PHRASES):
+        return True
+    return not _PACK_WORDS.isdisjoint(words) and "expansion" not in words
+
+
 def _is_junk_norm(norm: str) -> bool:
     if not norm or not _JUNK_WORDS.isdisjoint(norm.split()):
         return True
@@ -91,7 +120,9 @@ def _acronym(norm: str) -> str:
 
 
 # Entry tuple layout (tuples keep 200k+ entries compact and fast).
-APPID, NAME, NORM, COMPACT, ACRO, POP = range(6)
+# KIND is 0 for a game, 1 for DLC.
+APPID, NAME, NORM, COMPACT, ACRO, POP, KIND = range(7)
+DLC_PENALTY = 15  # a base game outranks its own DLC unless the query names the DLC
 
 
 class _Index:
@@ -118,20 +149,26 @@ _index: _Index | None = None
 _lock = threading.Lock()
 
 
-def _entry(appid: int, name: str, pop: float, norm: str | None = None) -> tuple:
+def _entry(appid: int, name: str, pop: float, kind: int = 0, norm: str | None = None) -> tuple:
     norm = _normalize(name) if norm is None else norm
-    return (int(appid), name, norm, norm.replace(" ", ""), _acronym(norm), float(pop))
+    return (int(appid), name, norm, norm.replace(" ", ""), _acronym(norm), float(pop), int(kind))
 
 
 def _load_entries() -> list[tuple]:
     if os.path.exists(INDEX_PATH):
         with gzip.open(INDEX_PATH, "rt", encoding="utf-8") as f:
             rows = json.load(f)
-        return [_entry(a, n, p) for a, n, p in rows if n]
+        # Rows are [appid, name, popularity] or [appid, name, popularity, kind].
+        return [_entry(*row) for row in rows if row[1]]
 
     log.info("search: built index missing, using legacy games.json")
-    with open(Config.LEGACY_GAMES_JSON, encoding="utf-8") as f:
-        apps = json.load(f)["applist"]["apps"]
+    try:
+        with open(Config.LEGACY_GAMES_JSON, encoding="utf-8") as f:
+            apps = json.load(f)["applist"]["apps"]
+    except FileNotFoundError:
+        # No local list at all: search() still has Steam's own store search.
+        log.warning("search: no index and no games.json; relying on Steam's store search")
+        return []
     seen: set[int] = set()
     entries = []
     for a in apps:
@@ -142,7 +179,7 @@ def _load_entries() -> list[tuple]:
         if _is_junk_norm(norm):
             continue
         seen.add(appid)
-        entries.append(_entry(appid, name, 4.5 if appid in _LEGACY_POPULAR else 0.0, norm))
+        entries.append(_entry(appid, name, 4.5 if appid in _LEGACY_POPULAR else 0.0, 0, norm))
     return entries
 
 
@@ -244,11 +281,13 @@ def find_matches(query: str, limit: int = 8) -> list[dict[str, Any]]:
             score += 28
         if acro_hit:
             score += 110 if acro == q_compact else 40
+        if e[KIND]:
+            score -= DLC_PENALTY
         scored.append((score, i))
 
     scored.sort(key=lambda t: (-t[0], len(entries[t[1]][NAME])))
     return [
-        {"appid": entries[i][APPID], "name": entries[i][NAME], "score": round(s, 1)}
+        {"appid": entries[i][APPID], "name": entries[i][NAME], "score": round(s, 1), "dlc": bool(entries[i][KIND])}
         for s, i in scored[:limit]
     ]
 
@@ -278,7 +317,7 @@ def search(query: str, limit: int = 8) -> list[dict[str, Any]]:
     # Steam's search also returns DLC and soundtracks; keep confirmed games only.
     kinds = steam.store_items([int(it["id"]) for it in candidates])
     extra = [
-        {"appid": int(it["id"]), "name": it["name"], "score": 0.0, "image": it.get("tiny_image")}
+        {"appid": int(it["id"]), "name": it["name"], "score": 0.0, "image": it.get("tiny_image"), "dlc": False}
         for it in candidates
         if (kinds.get(int(it["id"])) or {}).get("type") == 0
     ]
