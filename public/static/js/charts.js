@@ -1,14 +1,28 @@
 /* Small hand-drawn SVG charts. No chart library: these are simple enough to
    draw directly, and it keeps them in the site's own type and colours. */
 
-import { escapeHtml, fmtInt } from "pn/core";
+import { escapeHtml, fmtInt, fmtUSD } from "pn/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY = 86_400_000;
 
 const monthLabel = (t) => {
   const d = new Date(t * 1000);
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 };
+
+/** "2026-10-18" → that day's midnight UTC, in milliseconds. */
+const dayTime = (s) => {
+  const [y, m, d] = String(s).split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+
+/** "2026-10-18" → "18 Oct", with the year if it isn't this year (or always, with year: true). */
+export function dayLabel(s, { year = false } = {}) {
+  const d = new Date(dayTime(s));
+  const y = d.getUTCFullYear();
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${year || y !== new Date().getUTCFullYear() ? ` ${y}` : ""}`;
+}
 
 /**
  * Diverging monthly bars: positive reviews above the line, negative below,
@@ -92,4 +106,142 @@ export function reviewHistory(el, data, { months = 48 } = {}) {
     if (current != null) svg.querySelector(`[data-band="${current}"]`)?.setAttribute("opacity", "0");
     current = null;
   });
+}
+
+const cents = (c) => fmtUSD(c / 100);
+const centsTick = (c) => (c % 100 ? cents(c) : `$${c / 100}`);
+
+/** Gridline spacing in cents: a round step that gives about three lines. */
+function gridStep(max) {
+  const steps = [25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000];
+  return steps.find((s) => s * 3 >= max) || steps[steps.length - 1];
+}
+
+/**
+ * Daily US price as a step line: each day's price holds until the next
+ * snapshot. The scale starts at zero, so a half-price sale really halves the
+ * line. A dashed line marks the lowest price of the last 90 days.
+ * @param {HTMLElement} el
+ * @param {{points: {day:string, final:number, initial:number, discount:number}[],
+ *          low: ?{final:number, full:boolean, since:string}}} data  prices in cents
+ */
+export function priceHistory(el, data) {
+  const pts = (data.points || []).map((p) => ({ ...p, t: dayTime(p.day) }));
+  if (pts.length < 2) {
+    el.innerHTML = "";
+    return;
+  }
+
+  // Drawn at the width it's shown (up to 640), so labels stay readable on phones.
+  const W = Math.round(Math.min(640, Math.max(300, el.clientWidth || 640)));
+  const H = 160;
+  const pad = { l: 4, r: 4, t: 16, b: 24 };
+  const first = pts[0].t;
+  const end = pts[pts.length - 1];
+  const days = Math.round((end.t - first) / DAY) + 1; // one slot per day, the last one included
+  const slot = (W - pad.l - pad.r) / days;
+  const xAt = (t) => pad.l + ((t - first) / DAY) * slot;
+  const max = Math.max(1, ...pts.map((p) => p.final));
+  const step = gridStep(max);
+  const top = step * Math.ceil((max * 1.1) / step);
+  const plotH = H - pad.t - pad.b;
+  const yAt = (c) => pad.t + plotH * (1 - c / top);
+  const base = yAt(0);
+  const f = (n) => n.toFixed(1);
+
+  const parts = [];
+  for (let v = step; v <= top; v += step) {
+    parts.push(`<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${f(yAt(v))}" y2="${f(yAt(v))}"/>`);
+    parts.push(`<text class="tick" x="${pad.l}" y="${f(yAt(v) - 4)}">${centsTick(v)}</text>`);
+  }
+
+  // Across each day at that day's price, then up or down to the next one.
+  let line = "";
+  pts.forEach((p, i) => {
+    const next = i + 1 < pts.length ? xAt(pts[i + 1].t) : W - pad.r;
+    line += `${i ? "V" : `M${f(xAt(p.t))},`}${f(yAt(p.final))}H${f(next)}`;
+  });
+  parts.push(`<path class="price-area" d="${line}V${f(base)}H${pad.l}Z"/>`);
+  parts.push(`<line class="axis" x1="${pad.l}" x2="${W - pad.r}" y1="${f(base)}" y2="${f(base)}"/>`);
+  const low = data.low;
+  if (low) {
+    const y = f(yAt(low.final));
+    parts.push(`<line class="price-low" x1="${f(xAt(Math.max(first, dayTime(low.since))))}" x2="${W - pad.r}" y1="${y}" y2="${y}"/>`);
+  }
+  parts.push(`<path class="price-line" d="${line}"/>`);
+  parts.push(`<circle class="price-dot" cx="${f(xAt(end.t) + slot / 2)}" cy="${f(yAt(end.final))}" r="3.5"/>`);
+
+  // Dates along the bottom: about six for short histories, otherwise each month.
+  const ticks = [];
+  if (days <= 45) {
+    const every = Math.ceil(days / 6);
+    for (let i = 0; i < days; i += every) ticks.push(first + i * DAY);
+  } else {
+    const d0 = new Date(first);
+    for (let m = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1); m <= end.t; ) {
+      ticks.push(m);
+      const d = new Date(m);
+      m = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+    }
+  }
+  ticks.forEach((t) => {
+    const x = xAt(t);
+    if (x > W - pad.r - 40) return; // no room for a label at the very end
+    const d = new Date(t);
+    const label = days <= 45 ? `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}` : d.getUTCMonth() ? MONTHS[d.getUTCMonth()] : d.getUTCFullYear();
+    parts.push(`<text class="tick" x="${f(x)}" y="${H - 6}">${label}</text>`);
+  });
+
+  parts.push(`<line class="price-guide" y1="${pad.t}" y2="${f(base)}" visibility="hidden"/>`);
+  parts.push(`<circle class="price-dot price-dot--hover" r="4.5" visibility="hidden"/>`);
+  parts.push(`<rect class="hit" x="0" y="0" width="${W}" height="${H}"/>`);
+
+  const lowest = pts.reduce((a, b) => (b.final <= a.final ? b : a));
+  const summary =
+    `US price, recorded daily from ${dayLabel(pts[0].day, { year: true })} to ${dayLabel(end.day, { year: true })}. ` +
+    `Latest ${cents(end.final)}${end.discount ? `, ${end.discount}% off` : ""}. ` +
+    `Lowest ${cents(lowest.final)}, on ${dayLabel(lowest.day, { year: true })}.`;
+  const lowLabel = low && (low.full ? "Lowest in 90 days" : `Lowest since ${dayLabel(low.since)}`);
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(summary)}">${parts.join("")}</svg>
+    <div class="history-tip" hidden></div>
+    <div class="history-legend"><span class="price">US price</span>${low ? `<span class="low">${escapeHtml(lowLabel)}</span>` : ""}</div>`;
+
+  const svg = el.querySelector("svg");
+  const tip = el.querySelector(".history-tip");
+  const guide = svg.querySelector(".price-guide");
+  const dot = svg.querySelector(".price-dot--hover");
+  const show = (clientX) => {
+    const box = el.getBoundingClientRect();
+    const day = Math.floor((((clientX - box.left) / box.width) * W - pad.l) / slot);
+    const t = first + Math.min(Math.max(day, 0), days - 1) * DAY;
+    // The snapshot in force that day: a missed day keeps the one before it.
+    let p = pts[0];
+    for (const q of pts) {
+      if (q.t > t) break;
+      p = q;
+    }
+    const x = xAt(p.t) + slot / 2;
+    guide.setAttribute("x1", f(x));
+    guide.setAttribute("x2", f(x));
+    dot.setAttribute("cx", f(x));
+    dot.setAttribute("cy", f(yAt(p.final)));
+    guide.setAttribute("visibility", "visible");
+    dot.setAttribute("visibility", "visible");
+    tip.innerHTML = `<strong>${dayLabel(p.day, { year: true })}</strong><br>
+      <span class="num">${cents(p.final)}</span>${p.discount ? ` <span class="pos">−${p.discount}%</span> <span class="muted">from ${cents(p.initial)}</span>` : ""}`;
+    tip.hidden = false;
+    tip.style.left = `${Math.min(Math.max(0, (x / W) * box.width - 75), box.width - 160)}px`;
+    tip.style.top = "-8px";
+    tip.style.transform = "translateY(-100%)";
+  };
+  const hide = () => {
+    tip.hidden = true;
+    guide.setAttribute("visibility", "hidden");
+    dot.setAttribute("visibility", "hidden");
+  };
+  svg.addEventListener("pointermove", (e) => show(e.clientX));
+  svg.addEventListener("pointerdown", (e) => show(e.clientX));
+  // A finger lifting also "leaves", so a tapped tooltip stays until the next tap.
+  svg.addEventListener("pointerleave", (e) => e.pointerType !== "touch" && hide());
 }

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hmac
+import logging
 import re
 
 from flask import Blueprint, abort, jsonify, redirect, request
 
 from config import Config
 from routes.caching import cdn_cache, mark_degraded, no_store
-from services import charts, cheapshark, discover, steam_account
+from services import charts, cheapshark, discover, history, steam_account
 from services import game as game_service
 from services import fx, pricing, steam
 from services.http import UpstreamError, executor
@@ -17,6 +19,7 @@ from services.search import search
 from services.vibes import score_vibes_for_app
 
 bp = Blueprint("api", __name__, url_prefix="/api")
+log = logging.getLogger(__name__)
 
 
 def _int_arg(name: str, default: int, lo: int, hi: int) -> int:

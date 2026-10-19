@@ -31,6 +31,13 @@ class Config:
         + ")"
     )
 
+    # ── Price history (optional) ──────────────────────────
+    # Postgres connection string; Neon from the Vercel Marketplace sets it.
+    # Without it, price history is simply left out.
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    # Vercel sends this as a Bearer token when it runs the daily cron job.
+    CRON_SECRET: str = os.getenv("CRON_SECRET", "")
+
     # ── Data files ────────────────────────────────────────
     DATA_DIR: str = os.path.join(BASE_DIR, "data")
     # Legacy full app list; used for search until data/search_index.json.gz exists.

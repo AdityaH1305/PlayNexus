@@ -16,7 +16,7 @@ import {
   toast,
   watchRegion,
 } from "pn/core";
-import { reviewHistory } from "pn/charts";
+import { dayLabel, priceHistory, reviewHistory } from "pn/charts";
 
 const data = pageData();
 const game = { appid: data.appid, name: data.name, cover: data.header };
@@ -150,6 +150,47 @@ if (dealsEl) {
       );
     })
     .catch(() => setHTML(dealsEl, html`<p class="small muted">Couldn't check other stores just now.</p>`));
+}
+
+/* ── Price history ─────────────────────────────────────── */
+
+const priceChartEl = $("[data-price-history]");
+const priceLowEl = $("[data-price-low]");
+
+function priceLowMarkup({ low, now, status }) {
+  const span = low.full ? "in 90 days" : `since ${dayLabel(low.since)}`;
+  const hint = {
+    low: html`${low.full ? html`<span class="flag-note flag-note--accent">90-day low</span> ` : ""}Today's US price is the lowest ${span}.`,
+    near: html`Today's US price is within ${fmtUSD((now - low.final) / 100)} of that.`,
+    flat: html`The US price hasn't changed ${span}.`,
+  }[status];
+  return html`<div class="deals__low">
+      <span class="small text-2">${low.full ? "Lowest US price, last 90 days" : `Lowest US price since ${dayLabel(low.since)}`}</span>
+      <span><strong class="num">${fmtUSD(low.final / 100)}</strong>${status === "flat" ? "" : html` <span class="small muted">${dayLabel(low.day)}</span>`}</span>
+    </div>
+    ${hint ? html`<p class="small price-low__hint">${hint}</p>` : ""}`;
+}
+
+if (priceChartEl || priceLowEl) {
+  getJSON(`/api/game/${game.appid}/history`, { ttl: 3_600_000 })
+    .then((h) => {
+      // One day isn't a history yet: show nothing until there are two.
+      const pts = h.points || [];
+      if (pts.length < 2) return;
+      if (priceChartEl) {
+        $("[data-price-history-panel]").hidden = false; // first, so the chart can measure its width
+        priceHistory(priceChartEl, h);
+        const first = dayLabel(pts[0].day);
+        const last = pts[pts.length - 1].day;
+        const stale = Date.now() - Date.parse(`${last}T00:00:00Z`) > 3 * 86_400_000; // no longer tracked
+        setText("[data-price-history-summary]", stale ? `${first} to ${dayLabel(last)}` : `Since ${first}`);
+      }
+      if (priceLowEl && h.low) {
+        setHTML(priceLowEl, priceLowMarkup(h));
+        priceLowEl.hidden = false;
+      }
+    })
+    .catch(() => {}); // price history is optional: it just stays hidden
 }
 
 /* ── Review history ────────────────────────────────────── */

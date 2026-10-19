@@ -6,7 +6,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from routes.caching import cdn_cache, mark_degraded
 from routes.seo import absolute_url
-from services import charts, deals, discover, price_index, vibes
+from services import charts, deals, discover, history, price_index, vibes
 from services import game as game_service
 from services import search
 from services.http import UpstreamError
@@ -89,6 +89,7 @@ def game_page(appid: int):
     return render_template(
         "game.html", game=game, price_rows=priced + unpriced, strip=strip, us_x=us_x, page_data=page_data,
         json_ld=game_service.structured_data(game, absolute_url(url_for("pages.game_page", appid=game["appid"]))),
+        history_enabled=history.enabled(),
     )
 
 

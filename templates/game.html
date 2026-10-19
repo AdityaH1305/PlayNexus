@@ -190,6 +190,20 @@
           {% endif %}
         </section>
 
+        {# ── Price history (shown by game.js once there's some) ── #}
+        {% if history_enabled and not game.is_free %}
+        <section class="panel" aria-labelledby="price-history-title" data-price-history-panel hidden>
+          <div class="panel__head">
+            <h2 id="price-history-title">Price history</h2>
+            <span class="small muted" data-price-history-summary></span>
+          </div>
+          <div class="panel__body">
+            <div class="history" data-price-history></div>
+          </div>
+          <p class="panel__foot">The US Steam price, recorded once a day.</p>
+        </section>
+        {% endif %}
+
         {# ── Reviews over time ─────────────────────────── #}
         {% if r.total_reviews >= 10 %}
         <section class="panel" aria-labelledby="history-title">
@@ -217,6 +231,9 @@
               </p>
               {% if us and us.discount %}<p class="small"><span class="discount">−{{ us.discount }}%</span> <s class="muted">{{ us.initial_formatted }}</s> on sale now</p>{% endif %}
             </div>
+            {% if history_enabled and not game.is_free %}
+            <div class="price-low" data-price-low hidden></div>
+            {% endif %}
             {% if not game.is_free %}
             <div class="deals" data-deals>{{ ui.skeleton_rows(2) }}</div>
             {% endif %}

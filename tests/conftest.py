@@ -34,6 +34,16 @@ def _no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", guard)
 
 
+@pytest.fixture(autouse=True)
+def _no_database(monkeypatch):
+    """Price history is off unless a test turns it on with a fake database,
+    whatever DATABASE_URL a local .env sets."""
+    from config import Config
+
+    monkeypatch.setattr(Config, "DATABASE_URL", "")
+    monkeypatch.setattr(Config, "CRON_SECRET", "")
+
+
 @pytest.fixture
 def fixed_fx(monkeypatch):
     from services import fx
