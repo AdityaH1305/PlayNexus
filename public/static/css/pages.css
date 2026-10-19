@@ -10,6 +10,12 @@
   display: inline-flex;
 }
 
+@media (max-width: 860px) {
+  .hide-md {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .hide-sm {
     display: none;
@@ -247,6 +253,77 @@
   min-width: max(20.5ch, calc(var(--lp-ch) * 1.87ch + 6ch));
 }
 
+/* ── Charts and Deals on smaller screens ──────────────── */
+
+/* Below 1024px the list tables give back width so they never scroll sideways:
+   names and review summaries may wrap, and a price sits over its discount
+   instead of beside it. From 1024px up they're as above. */
+@media (max-width: 1023px) {
+  .chart-table .chart-game,
+  .deals-table .chart-game {
+    min-width: min(260px, 28vw);
+  }
+
+  .chart-table .chart-game__art,
+  .deals-table .chart-game__art {
+    width: clamp(72px, 11vw, 104px);
+  }
+
+  .chart-table .chart-game__name,
+  .deals-table .chart-game__name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+  }
+
+  /* At most two lines: "Overwhelmingly" is the longest word. */
+  .chart-table .review,
+  .deals-table .review {
+    display: inline-block;
+    min-width: 7.5em;
+    white-space: normal;
+  }
+
+  /* The price on one line; its discount, the regular price (Deals) and any
+     USD note on the next. */
+  .price-cell .lp-group,
+  :root[data-region] .price-cell .lp-group,
+  .deals-table .deal-price {
+    display: inline-grid;
+    grid-template-columns: 1fr auto auto;
+    justify-items: end;
+    align-items: baseline;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .price-cell .lp-group > .num,
+  .deal-price__now {
+    grid-row: 1;
+    grid-column: 1 / -1;
+  }
+
+  .deal-price s {
+    order: 1;
+    margin-left: var(--s-2);
+  }
+
+  .price-cell .lp-usd,
+  .deal-price .lp-usd {
+    order: 2;
+    margin-left: var(--s-1);
+  }
+
+  /* Local prices: on charts the price keeps the room set aside above
+     ([data-lp] > .num). On Deals the second line is the wider one; at its
+     widest it's a discount and a US regular price marked USD. */
+  :root[data-region] .deal-price {
+    min-width: max(14.2ch, calc(var(--lp-ch) * 0.87ch + 5ch));
+  }
+}
+
 @media (max-width: 640px) {
   .chart-game {
     min-width: 0;
@@ -254,6 +331,56 @@
 
   .chart-game__art {
     width: 72px;
+  }
+
+  .chart-table th,
+  .chart-table td,
+  .deals-table th,
+  .deals-table td {
+    padding-left: var(--s-2);
+    padding-right: var(--s-2);
+  }
+
+  .chart-table th:first-child,
+  .chart-table td:first-child,
+  .deals-table th:first-child,
+  .deals-table td:first-child {
+    padding-left: 0;
+  }
+
+  .chart-table th:last-child,
+  .chart-table td:last-child,
+  .deals-table th:last-child,
+  .deals-table td:last-child {
+    padding-right: 0;
+  }
+
+  .chart-table th {
+    white-space: normal;
+  }
+
+  .chart-table .chart-game,
+  .deals-table .chart-game {
+    min-width: 0;
+    gap: var(--s-2);
+  }
+
+  /* The discount says enough; the regular price is on the game page. */
+  .deal-price s {
+    display: none;
+  }
+
+  /* The sale price, or under it a discount marked USD. */
+  :root[data-region] .deal-price {
+    min-width: calc(max(var(--lp-ch), 8.1) * 1ch);
+  }
+}
+
+/* Portrait phones: the name needs the room more than the art does. */
+@media (max-width: 480px) {
+  .chart-table .chart-game__art,
+  .deals-table .chart-game__art {
+    display: none;
   }
 }
 
@@ -1313,6 +1440,69 @@
 
 .history-legend .down::before {
   background: var(--neg);
+}
+
+/* Price history chart (shares .history, the tooltip and the legend) */
+
+.history .grid {
+  stroke: var(--line-soft);
+}
+
+.history .price-area {
+  fill: var(--accent-wash);
+}
+
+.history .price-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.history .price-low {
+  stroke: var(--pos);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.history .price-dot {
+  fill: var(--accent);
+}
+
+.history .price-dot--hover {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.history .price-guide {
+  stroke: var(--muted);
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.history-legend .price::before {
+  height: 2px;
+  vertical-align: middle;
+  background: var(--accent);
+}
+
+.history-legend .low::before {
+  height: 0;
+  vertical-align: middle;
+  border-top: 2px dashed var(--pos);
+}
+
+/* Lowest of the last 90 days, in the price check panel */
+
+.price-low[hidden] {
+  display: none;
+}
+
+.price-low__hint {
+  margin-top: var(--s-2);
+  color: var(--text-2);
 }
 
 /* ── Deals ────────────────────────────────────────────── */

@@ -57,7 +57,7 @@
           <th scope="col">Game</th>
           {% if tab == 'playing' %}
           <th class="num" scope="col">Playing now</th>
-          <th class="num hide-sm" scope="col">Peak today</th>
+          <th class="num hide-md" scope="col">Peak today</th>
           {% elif tab in ('new', 'soon') %}
           <th scope="col" class="hide-sm">Release</th>
           {% endif %}
@@ -81,7 +81,7 @@
           </td>
           {% if tab == 'playing' %}
           <td class="num">{{ g.players|comma }}</td>
-          <td class="num hide-sm muted">{{ g.peak|comma }}</td>
+          <td class="num hide-md muted">{{ g.peak|comma }}</td>
           {% elif tab in ('new', 'soon') %}
           <td class="hide-sm text-2">{% if g.release_date %}{{ g.release_date|date('day') }}{% else %}<span class="muted">To be announced</span>{% endif %}</td>
           {% endif %}

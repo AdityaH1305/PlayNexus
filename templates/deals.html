@@ -58,7 +58,7 @@
           <th scope="col">Game</th>
           <th scope="col" class="hide-sm">Reviews</th>
           <th scope="col" class="num">Price</th>
-          <th scope="col" class="num hide-sm" title="Value score at the US sale price, where we know the game's typical playtime">Value</th>
+          <th scope="col" class="num hide-md" title="Value score at the US sale price, where we know the game's typical playtime">Value</th>
           <th scope="col" class="num">Deal</th>
         </tr>
       </thead>
@@ -82,8 +82,11 @@
               <span class="deal-price__now">{{ d.sale_price|usd }}</span>
               <s class="muted small">{{ d.normal_price|usd }}</s>
             </a>
+            {%- if d.appid in low90 %}
+            <span class="flag-note flag-note--accent deal-low" title="At or below the lowest US price we've recorded for it in the last 90 days">90-day low</span>
+            {%- endif %}
           </td>
-          <td class="num hide-sm">
+          <td class="num hide-md">
             {%- if d.value and d.value.score is not none -%}
             <span class="deal-score num">{{ d.value.score }}</span>
             <span class="deal-score__label">{{ d.value.label }}</span>
@@ -100,6 +103,7 @@
   </div>
   <p class="small muted notes us-only">US prices from CheapShark's Steam feed; price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the sale price, shown for games whose typical playtime we've measured.</p>
   <p class="small muted notes region-only">Sales come from CheapShark's US Steam feed. Where the <span data-region-name></span> store has the same sale, you see its price; otherwise the US one, marked USD. Price links go through CheapShark to Steam. Deal score: up to 40 points for the discount, 45 for how positive reviews are, 15 for how many there are. Value is our value score at the US sale price, shown for games whose typical playtime we've measured. The price filter uses US prices too.</p>
+  {% if low90 %}<p class="small muted notes">90-day low: the US sale price is at or below the lowest US price we've recorded for the game in the last 90 days. We record prices once a day.</p>{% endif %}
   {% endif %}
 </div>
 {% endblock %}
