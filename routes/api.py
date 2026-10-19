@@ -119,6 +119,43 @@ def api_game_deals(appid: int):
     return jsonify(deals or {"cheapest_ever": None, "deals": []})
 
 
+@bp.route("/game/<int:appid>/history")
+@cdn_cache(s_maxage=3600)
+def api_game_history(appid: int):
+    """Daily US prices for the price chart, the lowest of the last 90 days and
+    how today's price compares (services.history).  Empty without history."""
+    data = history.game_history(appid)
+    if data.pop("degraded", False):
+        mark_degraded()
+    return jsonify(data)
+
+
+def _from_vercel_cron() -> bool:
+    """Vercel Cron sends ``Authorization: Bearer <CRON_SECRET>``.  With no
+    secret set, nobody gets in."""
+    secret = Config.CRON_SECRET
+    sent = request.headers.get("Authorization", "")
+    return bool(secret) and hmac.compare_digest(sent.encode(), f"Bearer {secret}".encode())
+
+
+@bp.route("/cron/snapshot")
+@no_store
+def api_cron_snapshot():
+    """Save today's US prices to the price history (daily; see vercel.json)."""
+    if not _from_vercel_cron():
+        return jsonify({"error": "Unauthorized"}), 401
+    if not history.enabled():
+        return jsonify({"error": "Price history isn't set up: DATABASE_URL is missing."}), 503
+    try:
+        return jsonify(history.snapshot())
+    except history.HistoryError as exc:
+        log.error("price snapshot failed: %s", exc)
+        return jsonify({"error": "Couldn't save the snapshot to the database."}), 503
+    except UpstreamError as exc:
+        log.error("price snapshot failed: %s", exc)
+        return jsonify({"error": "Steam didn't answer, so nothing was saved."}), 503
+
+
 @bp.route("/whereami")
 @no_store
 def api_whereami():
@@ -189,7 +226,10 @@ def api_prices(appid: int):
         abort(503)
     if not details:
         abort(404)
-    return jsonify(pricing.regional_prices(appid, is_free=bool(details.get("is_free"))))
+    prices = pricing.regional_prices(appid, is_free=bool(details.get("is_free")))
+    if any(r["error"] for r in prices["regions"]):
+        mark_degraded()
+    return jsonify(prices)
 
 
 MAX_BATCH_IDS = 100  # two Steam calls; public/static/js/prices.js sends no more

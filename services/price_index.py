@@ -35,15 +35,28 @@ def _basket(limit: int) -> list[dict[str, Any]]:
     return games[:limit]
 
 
-def _region_prices(ids: list[int], cc: str) -> dict[int, dict | None]:
+def _region_prices(ids: list[int], cc: str) -> tuple[dict[int, dict | None], set[int]]:
+    """One store's prices for the basket, and the apps Steam didn't answer for."""
+    missed: set[int] = set()
     try:
-        return steam.price_overview(ids, cc)
+        return steam.price_overview(ids, cc, failed=missed), missed
     except UpstreamError:
-        return {}
+        return {}, set(ids)
+
+
+class PartialIndex(UpstreamError):
+    """Some stores didn't answer.  ``index`` is built from the rest and names
+    those regions in ``missing``; it's raised, not returned, so the cache keeps
+    it for five minutes rather than six hours."""
+
+    def __init__(self, index: dict[str, Any]):
+        super().__init__("no prices from " + ", ".join(index["missing"]))
+        self.index = index
 
 
 @ttl_cache(ttl=6 * 3600, fail_ttl=300)
 def compute(limit: int = 60) -> dict[str, Any]:
+    """The index.  Raises :class:`PartialIndex` if some stores didn't answer."""
     games = _basket(limit)
     if len(games) < 10:
         raise UpstreamError("not enough games to build the index")
@@ -51,12 +64,19 @@ def compute(limit: int = 60) -> dict[str, Any]:
     names = {g["appid"]: g["name"] for g in games}
 
     futures = {r["cc"]: executor.submit(_region_prices, ids, r["cc"]) for r in Config.REGIONS}
-    prices = {cc: f.result() for cc, f in futures.items()}
+    prices, failed = {}, {}
+    for cc, future in futures.items():
+        prices[cc], failed[cc] = future.result()
+    if failed["us"]:
+        raise UpstreamError("no US prices to compare with")
     us = prices["us"]
 
-    rows, gaps = [], []
+    rows, gaps, missing = [], [], []
     for region in Config.REGIONS:
         if region["cc"] == "us":
+            continue
+        if failed[region["cc"]]:
+            missing.append(region["name"])
             continue
         ratios = []
         currency = None
@@ -87,11 +107,15 @@ def compute(limit: int = 60) -> dict[str, Any]:
         })
     rows.sort(key=lambda r: r["median_pct"])
     gaps.sort(key=lambda g: g["pct"])
-    return {
+    index = {
         "rows": rows,
         "basket": len(games),
         "gaps": gaps[:10],
+        "missing": missing,
         "us_x": round(1 / AXIS_MAX * 100, 2),
         "updated": int(time.time()),
         "fx": fx.meta(),
     }
+    if missing:
+        raise PartialIndex(index)
+    return index

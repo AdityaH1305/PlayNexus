@@ -1360,6 +1360,13 @@
   font-weight: 500;
 }
 
+/* "90-day low", on its own line under the price */
+.deal-low {
+  display: block;
+  width: max-content;
+  margin: 4px 0 0 auto;
+}
+
 .deal-score {
   display: block;
   font-size: var(--fs-17);
@@ -1377,6 +1384,10 @@
 
 .index {
   display: grid;
+}
+
+.notice + .index {
+  margin-top: var(--s-4);
 }
 
 .index__head,

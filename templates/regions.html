@@ -17,6 +17,9 @@
   {% if not index %}
     {{ ui.empty("The index isn't available right now", "Steam's prices aren't loading. Try again in a few minutes.") }}
   {% else %}
+  {% if index.missing %}
+  <p class="notice">{{ ui.icon('info') }}Couldn't load prices for {{ index.missing|join(", ") }}. Steam may be busy; try again shortly.</p>
+  {% endif %}
   <div class="index" role="table" aria-label="Median price compared with the US, by region">
     <div class="index__head" role="row">
       <span role="columnheader">Region</span>

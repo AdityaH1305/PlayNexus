@@ -130,6 +130,8 @@ def deals_page():
     shown = deals.filter_deals(rows, sort=sort, **filters)
     return render_template(
         "deals.html", deals=shown, total=len(rows), error=error, sort=sort, sorts=deals.SORTS,
+        # All rows, not just the filtered ones, so every filter shares one lookup.
+        low90=history.at_low(rows),
         args={"max": request.args.get("max", ""), "rating": request.args.get("rating", ""),
               "discount": request.args.get("discount", "")},
     )
@@ -140,6 +142,9 @@ def deals_page():
 def regions_page():
     try:
         index = price_index.compute()
+    except price_index.PartialIndex as exc:
+        index = exc.index  # the regions Steam answered for; the page names the rest
+        mark_degraded()
     except UpstreamError:
         index = None
         mark_degraded()
