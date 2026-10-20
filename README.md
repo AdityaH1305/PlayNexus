@@ -9,6 +9,7 @@ It runs as a single Flask app on Vercel, with no build step. An optional free Po
 **Game pages**
 - A 0–100 **value score** built from typical playtime, review quality and review count, with the price at which the game becomes "great value" and its cost per hour.
 - **Prices in 16 regions**, converted at today's exchange rates, with a strip chart showing each region against the US price. Your region is detected (or picked), highlighted, and used to re-score value at your price.
+- **Before you buy**: what Steam says about free demos, third-party accounts and DRM, in-app purchases and Early Access, plus a warning when the last 30 days of reviews are much better or worse than the rest.
 - **Price check**: the all-time low at any store and current prices at other stores (via CheapShark).
 - **Price history** (with a database): the US price day by day, the lowest of the last 90 days, and a note when today's price is at or near it.
 - **Live players** and chart rank, **Steam Deck** status, Metacritic, top user tags.
@@ -41,6 +42,8 @@ Playtime is the typical playtime of people who reviewed the game. Labels: 85+ ex
 **Deal score (0–100)**: 40 for the discount (up to 90% off), 45 for how far reviews sit above 50% positive, 15 for review volume (100,000+ = full).
 
 **Vibes**: each vibe is a weighted set of real Steam user tags (`services/vibes.py`). A game's tag votes are scaled so its strongest tag counts as 1.0; some tags count against a vibe (a horror game isn't cozy). Scores are absolute, and a vibe only shows from 35 up.
+
+**Recent reviews**: the game page flags the last 30 days of reviews (from Steam's review histogram) when there are at least 50 of them, they're no more than a quarter of all reviews, they sit 15+ points from the histogram's all-time figure, and they're 10+ points from the overall score in the same direction. The histogram doesn't count quite the same reviews as the overall score, so both checks have to agree.
 
 **Regional index**: each game's regional price in US dollars divided by its US price; a region's index is the median across the basket, so one odd price can't skew it.
 

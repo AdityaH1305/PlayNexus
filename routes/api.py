@@ -12,7 +12,7 @@ from config import Config
 from routes.caching import cdn_cache, mark_degraded, no_store
 from services import charts, cheapshark, discover, history, steam_account
 from services import game as game_service
-from services import fx, pricing, steam
+from services import fx, pricing, reviews, steam
 from services.http import UpstreamError, executor
 from services.recommendations import get_recommendations
 from services.search import search
@@ -100,14 +100,11 @@ def api_game_reviews(appid: int):
         for r in h.get("rollups") or []
     ]
     recent = h.get("recent") or []
+    up, down = reviews.window_totals(recent)
     return jsonify({
         "rollup": h.get("rollup_type") or "month",
         "points": points,
-        "recent": {
-            "up": sum(r.get("recommendations_up", 0) for r in recent),
-            "down": sum(r.get("recommendations_down", 0) for r in recent),
-            "days": len(recent),
-        },
+        "recent": {"up": up, "down": down, "days": len(recent)},
     })
 
 

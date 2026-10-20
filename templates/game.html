@@ -50,6 +50,9 @@
             {%- if not r.available %}<span class="muted">Reviews unavailable right now</span>
             {%- else %}{{ ui.review(game.review_label, (r.positivity * 100) if r.total_reviews >= 10 else none, r.total_reviews) }}{% if r.total_reviews >= 10 %} <span class="muted small num">{{ r.total_reviews|compact }}</span>{% endif %}{% endif -%}
           </li>
+          {%- if r.trend %}{% set better = r.trend.direction == 'better' %}
+          <li class="{{ 'delta--up' if better else 'delta--down' }}">{{ ui.icon('up' if better else 'down', 'icon--sm') }}{{ ui.review('Last 30 days', r.trend.recent_pct, r.trend.recent_count) }}</li>
+          {%- endif %}
           <li class="fact-live" data-live hidden><span class="live-dot" aria-hidden="true"></span><span class="num" data-live-count></span> playing now<span class="muted" data-live-rank></span></li>
           {% if game.deck_label %}<li><span class="deck deck--{{ game.deck }}">Steam Deck {{ game.deck_label }}</span></li>{% endif %}
           {% if m.metacritic %}<li class="small">Metacritic <span class="num">{{ m.metacritic }}</span></li>{% endif %}
@@ -127,6 +130,26 @@
             {% endif %}
           </div>
         </section>
+
+        {# ── Before you buy (only when there's something to say) ── #}
+        {% if game.notes %}
+        <section class="panel" id="before-you-buy" aria-labelledby="buy-title">
+          <div class="panel__head"><h2 id="buy-title">Before you buy</h2></div>
+          <ul class="buy-notes">
+            {% for n in game.notes %}
+            <li class="buy-note buy-note--{{ n.tone }}">
+              {{ ui.icon(n.icon) }}
+              <div>
+                <p class="buy-note__title">{{ n.title }}</p>
+                {%- if n.detail or n.href %}
+                <p class="buy-note__detail">{{ n.detail }}{% if n.href %} <a href="{{ n.href }}" target="_blank" rel="noopener">{{ n.link }}</a>{% endif %}</p>
+                {%- endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
 
         {# ── Prices around the world ───────────────────── #}
         <section class="panel" aria-labelledby="prices-title">
@@ -273,6 +296,7 @@
               {% if m.publishers %}<div><dt>Publisher</dt><dd>{{ m.publishers|join(', ') }}</dd></div>{% endif %}
               {% if m.release %}<div><dt>{{ 'Release' if m.coming_soon else 'Released' }}</dt><dd>{{ m.release }}</dd></div>{% endif %}
               {% if m.platforms %}<div><dt>Platforms</dt><dd>{{ m.platforms|join(', ') }}</dd></div>{% endif %}
+              {% if m.controller %}<div><dt>Controller</dt><dd>{{ m.controller }}</dd></div>{% endif %}
               {% if m.genres %}<div><dt>Genres</dt><dd>{{ m.genres|join(', ') }}</dd></div>{% endif %}
               <div><dt>App ID</dt><dd class="num">{{ game.appid }}</dd></div>
             </dl>

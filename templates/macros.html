@@ -19,9 +19,9 @@
 
 {% macro review(label, pct, count=none) -%}
 {%- if pct is not none -%}
-<span class="review review--{{ review_tone(pct) }}" title="{{ '%d%% positive'|format(pct) }}{% if count %} of {{ '{:,}'.format(count) }} reviews{% endif %}">
+<span class="review review--{{ review_tone(pct) }}" title="{{ '%d%% positive'|format(pct|round|int) }}{% if count %} of {{ '{:,}'.format(count) }} reviews{% endif %}">
   <span class="review__label">{{ label or 'Reviews' }}</span>
-  <span class="review__pct num">{{ pct|int }}%</span>
+  <span class="review__pct num">{{ pct|round|int }}%</span>
 </span>
 {%- else -%}
 <span class="review review--none">No reviews yet</span>

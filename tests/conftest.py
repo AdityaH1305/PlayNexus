@@ -80,8 +80,9 @@ def make_game(**overrides):
             "developers": ["Larian Studios"], "publishers": ["Larian Studios"], "release": "3 Aug, 2023",
             "coming_soon": False, "metacritic": 96, "metacritic_url": "https://www.metacritic.com/game/x",
             "platforms": ["Windows", "macOS"], "website": "https://baldursgate3.game", "genres": ["RPG"],
-            "description": "Gather your party.",
+            "description": "Gather your party.", "controller": "Full support",
         },
+        "notes": [],
         "tags": ["RPG", "Choices Matter", "Story Rich"],
         "deck": 3,
         "deck_label": "Verified",
@@ -105,6 +106,7 @@ def make_game(**overrides):
             "available": True, "positivity": 0.96, "total_reviews": 650000, "total_positive": 624000,
             "total_negative": 26000, "review_label": "Overwhelmingly Positive", "p50_all": 120.0,
             "p50_recent": 60.0, "p75_recent": 140.0, "recent_positivity": 0.93, "recent_count": 100,
+            "trend": None,
         },
         "value": {"score": 88, "label": "Excellent value", "breakdown": {
             "effective_hours": 120.0, "hours_per_dollar": 2.0, "cost_per_hour": 0.5,

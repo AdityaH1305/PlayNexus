@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import Any
 
 from services import pool, pricing, reviews, steam, tags, value_score, vibes
@@ -19,6 +20,10 @@ log = logging.getLogger(__name__)
 
 STORE_URL = "https://store.steampowered.com/app/{appid}"
 DECK_LABELS = {3: "Verified", 2: "Playable", 1: "Unsupported"}
+CONTROLLER = {"full": "Full support", "partial": "Partial support"}
+IN_APP_PURCHASES = 35  # Steam category ID
+EARLY_ACCESS = "70"  # Steam genre ID
+NOTICE_MAX = 200  # characters of Steam's account and DRM notices
 
 
 def _store_item(appid: int) -> dict[str, Any] | None:
@@ -44,7 +49,77 @@ def _meta(details: dict[str, Any]) -> dict[str, Any]:
         "website": website if (website := (details.get("website") or "")).startswith(("https://", "http://")) else None,
         "genres": [g.get("description") for g in details.get("genres") or [] if g.get("description")],
         "description": html.unescape(details.get("short_description") or ""),
+        "controller": CONTROLLER.get(details.get("controller_support") or ""),
     }
+
+
+def _plain(text: str | None) -> str:
+    """Steam's notice text without markup, on one line, cut to a sensible length."""
+    text = " ".join(re.sub(r"<[^>]*>", " ", html.unescape(text or "")).split())
+    return text if len(text) <= NOTICE_MAX else text[: NOTICE_MAX - 1].rstrip() + "…"
+
+
+def _years(months: int) -> str:
+    """Roughly how long, for a sentence: "a year", "over 2 years", "almost 3 years"."""
+    years, rest = divmod(months, 12)
+    prefix = ""
+    if rest >= 9:
+        years, prefix = years + 1, "almost "
+    elif rest >= 3:
+        prefix = "over "
+    return prefix + ("a year" if years == 1 else f"{years} years")
+
+
+def buyer_notes(
+    details: dict[str, Any], *, trend: dict[str, Any] | None, is_free: bool, release: str,
+    coming_soon: bool, store_url: str, today: date | None = None,
+) -> list[dict[str, Any]]:
+    """What to know before buying, mostly in Steam's own words:
+    ``[{kind, tone, icon, title, detail, href, link}]``, most pressing first.
+    Most games have none."""
+    notes: list[dict[str, Any]] = []
+
+    def note(kind, tone, icon, title, detail="", href=None, link=None):
+        notes.append({"kind": kind, "tone": tone, "icon": icon, "title": title,
+                      "detail": detail, "href": href, "link": link})
+
+    if trend:
+        worse = trend["direction"] == "worse"
+        note("trend", "neg" if worse else "pos", "down" if worse else "up",
+             f"Recent reviews are much more {'negative' if worse else 'positive'}",
+             f"{trend['recent_pct']}% positive in the last 30 days ({trend['recent_count']:,} reviews), "
+             f"against {trend['overall_pct']}% overall.",
+             f"{store_url}#app_reviews_hash", "Read recent reviews on Steam")
+
+    if any(str(g.get("id")) == EARLY_ACCESS for g in details.get("genres") or []):
+        unfinished = "It isn't finished, and may or may not change further."
+        started = None if coming_soon else release_iso(release)
+        if coming_soon:
+            note("early_access", "caution", "clock", "Launches in Early Access", unfinished)
+        elif started:
+            start, today = date.fromisoformat(started), today or date.today()
+            months = (today.year - start.year) * 12 + today.month - start.month - (today.day < start.day)
+            if months >= 12:
+                note("early_access", "caution", "clock", f"In Early Access for {_years(months)}",
+                     f"Since {release}. {unfinished}")
+            else:
+                note("early_access", "caution", "clock", f"In Early Access since {release}", unfinished)
+        else:
+            note("early_access", "caution", "clock", "In Early Access", unfinished)
+
+    if account := _plain(details.get("ext_user_account_notice")):
+        note("account", "caution", "link", "Needs a third-party account", account)
+    if drm := _plain(details.get("drm_notice")):
+        note("drm", "caution", "lock", "Third-party DRM", drm)
+    if any(c.get("id") == IN_APP_PURCHASES for c in details.get("categories") or []):
+        note("iap", "caution", "coins",
+             "Free to play, with in-app purchases" if is_free else "In-app purchases on top of the price")
+
+    demo = next((d["appid"] for d in details.get("demos") or [] if str(d.get("appid", "")).isdigit()), None)
+    if demo:
+        note("demo", "pos", "gamepad", "Free demo on Steam", "Try it before you buy.",
+             STORE_URL.format(appid=int(demo)), "Get the demo")
+    return notes
 
 
 def load_game(appid: int) -> dict[str, Any] | None:
@@ -119,6 +194,11 @@ def load_game(appid: int) -> dict[str, Any] | None:
             by_region[row["code"]] = {"score": s, "label": lbl, "cost_per_hour": b["cost_per_hour"]}
 
     header = details.get("header_image") or (item or {}).get("header")
+    store_url = STORE_URL.format(appid=appid)
+    notes = buyer_notes(
+        details, trend=stats.get("trend"), is_free=is_free, release=meta["release"],
+        coming_soon=meta["coming_soon"], store_url=store_url,
+    )
     return {
         "appid": appid,
         "name": details.get("name") or (item or {}).get("name") or f"App {appid}",
@@ -131,7 +211,8 @@ def load_game(appid: int) -> dict[str, Any] | None:
         "coming_soon": meta["coming_soon"],
         "header_image": header,
         "hero_image": (item or {}).get("hero") or details.get("background_raw") or header,
-        "store_url": STORE_URL.format(appid=appid),
+        "store_url": store_url,
+        "notes": notes,
         "tags": tags.top_names((item or {}).get("tags") or [], 8),
         "deck": (item or {}).get("deck", 0),
         "deck_label": DECK_LABELS.get((item or {}).get("deck", 0)),

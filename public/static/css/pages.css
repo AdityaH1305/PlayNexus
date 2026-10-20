@@ -1156,6 +1156,54 @@
   }
 }
 
+/* Before you buy */
+
+.buy-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.buy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+
+.buy-note + .buy-note {
+  border-top: 1px solid var(--line-soft);
+}
+
+.buy-note > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.buy-note--neg > .icon {
+  color: var(--neg);
+}
+
+.buy-note--pos > .icon {
+  color: var(--pos);
+}
+
+.buy-note--caution > .icon {
+  color: var(--mixed);
+}
+
+.buy-note__title {
+  font-weight: 500;
+}
+
+.buy-note__detail {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: var(--fs-13);
+  overflow-wrap: anywhere;
+}
+
 /* Regional prices */
 
 .region-pick {
