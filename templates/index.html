@@ -19,9 +19,12 @@
         </div>
         <ul class="listbox" id="home-results" role="listbox" aria-label="Matching games" hidden></ul>
       </form>
-      <p class="hero__try">Try <a href="{{ url_for('pages.game_page', appid=1145360) }}">Hades</a>,
-        <a href="{{ url_for('pages.game_page', appid=413150) }}">Stardew Valley</a> or
-        <a href="{{ url_for('pages.game_page', appid=1086940) }}">Baldur's Gate 3</a>.</p>
+      {% if suggestions %}
+      <p class="hero__try">Try {% for s in suggestions -%}
+        <a href="{{ url_for('pages.game_page', appid=s.appid) }}" title="{{ s.why }}">{{ s.name }}</a>
+        {%- if loop.revindex == 2 %} or {% elif not loop.last %}, {% endif %}
+      {%- endfor %}.</p>
+      {% endif %}
     </div>
 
     {% if playing %}

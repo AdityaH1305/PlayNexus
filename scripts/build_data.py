@@ -6,6 +6,7 @@ Run from the project root:
     python scripts/build_data.py tags    # Steam tag names (no key)
     python scripts/build_data.py pool    # discovery pool with playtime (no key, ~15 min)
     python scripts/build_data.py index   # games-only search index (needs STEAM_API_KEY)
+    python scripts/build_data.py gems    # indie gems for the home page (after index)
     python scripts/build_data.py all     # everything above
 
 Raw upstream responses are cached in .cache/ so an interrupted run resumes
@@ -121,66 +122,82 @@ def fetch_apps(key: str, kind: str = "games") -> list[dict]:
         last = resp.get("last_appid") or batch[-1]["appid"]
 
 
-def _review_counts_raw(appids: list[int]) -> dict[int, int]:
-    """Review counts for up to 50 apps straight from the API (raises on failure)."""
+def _items_raw(appids: list[int], data_request: dict) -> list[dict]:
+    """Raw GetItems store items for up to 50 apps (raises on failure)."""
     payload = {
         "ids": [{"appid": a} for a in appids],
         "context": {"language": "english", "country_code": "US"},
-        "data_request": {"include_reviews": True},
+        "data_request": data_request,
     }
     params = {"input_json": json.dumps(payload, separators=(",", ":"))}
     if Config.STEAM_API_KEY:
         params["key"] = Config.STEAM_API_KEY
     data = get_json(f"{steam.WEBAPI}/IStoreBrowseService/GetItems/v1/", params, timeout=30)
-    out: dict[int, int] = {}
-    for item in ((data or {}).get("response") or {}).get("store_items") or []:
-        if item.get("success") == 1 and item.get("appid"):
-            summary = (item.get("reviews") or {}).get("summary_filtered") or {}
-            out[int(item["appid"])] = int(summary.get("review_count") or 0)
-    return out
+    return [
+        item for item in ((data or {}).get("response") or {}).get("store_items") or []
+        if item.get("success") == 1 and item.get("appid")
+    ]
 
 
-def _counts_with_retry(part: list[int]) -> dict[int, int]:
-    for attempt in range(6):
-        try:
-            got = _review_counts_raw(part)
-            time.sleep(0.2)
-            return got
-        except UpstreamError as exc:
-            wait = 30 * (attempt + 1) if "429" in str(exc) else 5
-            print(f"    {exc}; waiting {wait}s", flush=True)
-            time.sleep(wait)
-    raise SystemExit("Steam keeps refusing. Progress is saved; run the index step again later.")
+def _review_counts_raw(appids: list[int]) -> dict[int, int]:
+    """Review counts for up to 50 apps straight from the API (raises on failure)."""
+    return {
+        int(item["appid"]): int(((item.get("reviews") or {}).get("summary_filtered") or {}).get("review_count") or 0)
+        for item in _items_raw(appids, {"include_reviews": True})
+    }
 
 
-def fetch_review_counts(appids: list[int], prefix: str = "reviews") -> dict[int, int]:
-    """Review counts, 50 apps per call (4 at a time), saved every 500 so a
-    rerun resumes.
+def _retrying(fetch_part):
+    """Wrap a per-chunk fetch with backoff on HTTP 429; give up after six tries."""
+
+    def run(part: list[int]) -> dict:
+        for attempt in range(6):
+            try:
+                got = fetch_part(part)
+                time.sleep(0.2)
+                return got
+            except UpstreamError as exc:
+                wait = 30 * (attempt + 1) if "429" in str(exc) else 5
+                print(f"    {exc}; waiting {wait}s", flush=True)
+                time.sleep(wait)
+        raise SystemExit("Steam keeps refusing. Progress is saved; run this step again later.")
+
+    return run
+
+
+def _fetch_in_batches(appids: list[int], prefix: str, fetch_part) -> dict[int, object]:
+    """Run *fetch_part* on 50-app chunks (4 at a time), saving every 500 to
+    .cache/ so a rerun resumes.
 
     Only successful batches are saved: a rate-limited response must never be
-    recorded as "no reviews", or those games would sink in search for good.
+    recorded as "no data", or those games would be judged on nothing for good.
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    counts: dict[int, int] = {}
+    results: dict[int, object] = {}
     batches = [appids[i : i + 500] for i in range(0, len(appids), 500)]
     with ThreadPoolExecutor(max_workers=4) as pool:
         for n, batch in enumerate(batches, 1):
             path = os.path.join(CACHE, f"{prefix}_{batch[0]}_{len(batch)}.json")
             if os.path.exists(path):
                 with open(path, encoding="utf-8") as f:
-                    counts.update({int(k): v for k, v in json.load(f).items()})
+                    results.update({int(k): v for k, v in json.load(f).items()})
                 continue
-            got: dict[int, int] = {}
-            for part in pool.map(_counts_with_retry, list(chunks(batch, 50))):
+            got: dict = {}
+            for part in pool.map(_retrying(fetch_part), list(chunks(batch, 50))):
                 got.update(part)
             os.makedirs(CACHE, exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump({str(k): v for k, v in got.items()}, f)
-            counts.update(got)
+            results.update(got)
             if n % 10 == 0 or n == len(batches):
                 print(f"  {prefix}: {n}/{len(batches)} batches", flush=True)
-    return counts
+    return results
+
+
+def fetch_review_counts(appids: list[int], prefix: str = "reviews") -> dict[int, int]:
+    """Review counts, 50 apps per call, resumable (see :func:`_fetch_in_batches`)."""
+    return _fetch_in_batches(appids, prefix, _review_counts_raw)
 
 
 MIN_DLC_REVIEWS = 500  # expansions people actually bought and reviewed
@@ -344,7 +361,75 @@ def build_pool() -> None:
     _write_json(os.path.join(DATA, "pool.json"), {"built": int(time.time()), "games": games})
 
 
-STEPS = {"fx": build_fx, "tags": build_tags, "pool": build_pool, "index": build_index}
+# ── Indie gems (home page "Try …" suggestions) ────────────
+
+INDIE_TAG = 492
+GEM_MIN_PCT = 94
+GEM_REVIEWS = (1_000, 70_000)  # loved, but not a megahit
+ADULT_TAG_NAMES = {"Sexual Content", "Nudity", "NSFW", "Hentai"}
+
+
+def _gem_fields(appids: list[int]) -> dict[int, dict]:
+    """What the gem filter needs, for up to 50 apps (raises on failure)."""
+    out: dict[int, dict] = {}
+    request = {"include_reviews": True, "include_release": True, "include_tag_count": 10}
+    for item in _items_raw(appids, request):
+        reviews = (item.get("reviews") or {}).get("summary_filtered") or {}
+        tags_ = sorted(item.get("tags") or [], key=lambda t: -t.get("weight", 0))
+        out[int(item["appid"])] = {
+            "name": item.get("name") or "",
+            "type": item.get("type"),
+            "free": bool(item.get("is_free")),
+            "soon": bool(item.get("is_coming_soon")),
+            "pct": reviews.get("percent_positive"),
+            "count": int(reviews.get("review_count") or 0),
+            "release": (item.get("release") or {}).get("steam_release_date"),
+            "tags": [t["tagid"] for t in tags_],
+        }
+    return out
+
+
+def build_gems() -> None:
+    """Well-loved indie games that aren't megahits, for the home page."""
+    print("Indie gems")
+    index_path = os.path.join(DATA, "search_index.json.gz")
+    if not os.path.exists(index_path):
+        raise SystemExit("Build the search index first: python scripts/build_data.py index")
+    with gzip.open(index_path, "rt", encoding="utf-8") as f:
+        rows = json.load(f)
+    # The index stores popularity as log10(reviews + 1), rounded; widen a hair.
+    lo = math.log10(GEM_REVIEWS[0] + 1) - 0.01
+    hi = math.log10(GEM_REVIEWS[1] + 1) + 0.01
+    ids = [r[0] for r in rows if (len(r) < 4 or r[3] == 0) and lo <= r[2] <= hi]
+    print(f"  {len(ids)} games with roughly {GEM_REVIEWS[0]:,}-{GEM_REVIEWS[1]:,} reviews", flush=True)
+
+    adult = {tid for tid, name in steam_tag_names().items() if name in ADULT_TAG_NAMES}
+    fields = _fetch_in_batches(ids, "gems", _gem_fields)
+    now = time.time()
+    gems = []
+    for appid, f in fields.items():
+        if (
+            f["type"] == 0 and f["name"] and not f["free"] and not f["soon"]
+            and f["release"] and f["release"] < now
+            and (f["pct"] or 0) >= GEM_MIN_PCT
+            and GEM_REVIEWS[0] <= f["count"] <= GEM_REVIEWS[1]
+            and INDIE_TAG in f["tags"][:8]
+            and not adult & set(f["tags"][:5])
+        ):
+            gems.append({"appid": appid, "name": f["name"], "review_pct": f["pct"],
+                         "review_count": f["count"], "release": f["release"]})
+    gems.sort(key=lambda g: (-g["review_pct"], -g["review_count"]))
+    print(f"  {len(gems)} indie gems", flush=True)
+    _write_json(os.path.join(DATA, "gems.json"), {"built": int(time.time()), "games": gems})
+
+
+def steam_tag_names() -> dict[int, str]:
+    """Tag names from the bundled snapshot (refresh with the tags step)."""
+    with open(os.path.join(DATA, "tags.json"), encoding="utf-8") as f:
+        return {int(k): v for k, v in json.load(f).items()}
+
+
+STEPS = {"fx": build_fx, "tags": build_tags, "pool": build_pool, "index": build_index, "gems": build_gems}
 
 
 def main() -> None:

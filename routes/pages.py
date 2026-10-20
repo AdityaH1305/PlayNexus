@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from routes.caching import cdn_cache, mark_degraded
 from routes.seo import absolute_url
-from services import charts, deals, discover, history, price_index, vibes
+from services import charts, deals, discover, history, price_index, suggestions, vibes
 from services import game as game_service
 from services import search
 from services.http import UpstreamError
 from services.search import find_appid_by_name
+
+log = logging.getLogger(__name__)
 
 bp = Blueprint("pages", __name__)
 
@@ -31,7 +35,14 @@ def home():
         best = []
     if playing.get("error") or not best:
         mark_degraded()
-    return render_template("index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list())
+    try:
+        picks = suggestions.todays_picks()
+    except Exception:  # a suggestion must never take the home page down
+        log.exception("home page suggestions failed")
+        picks = list(suggestions.FALLBACK)
+    return render_template(
+        "index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list(), suggestions=picks,
+    )
 
 
 @bp.route("/game", methods=["POST"])

@@ -107,6 +107,7 @@ Snapshots in `data/` ship with the app so pages never wait on slow sources. Refr
 | `python scripts/build_data.py tags` | `data/tags.json`: Steam tag names | No |
 | `python scripts/build_data.py pool` | `data/pool.json`: ~1,000 well-reviewed games with tags and measured playtime, used by Discover, Similar games and the value scores on Deals | No |
 | `python scripts/build_data.py index` | `data/search_index.json.gz`: every game plus real expansions (DLC with 500+ reviews; soundtracks, cosmetics and packs left out), ranked by popularity | Yes |
+| `python scripts/build_data.py gems` | `data/gems.json`: indie games with 94%+ positive and 1,000–70,000 reviews, for the home page's daily "Try …" suggestions. Run after `index` | No |
 
 Steam rate-limits review requests, so `pool` measures playtime gently and stops when Steam pushes back. Run it again later to fill in the rest. It resumes from `.cache/`. The `index` step takes about half an hour and also resumes if interrupted.
 
