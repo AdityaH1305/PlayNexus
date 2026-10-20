@@ -19,11 +19,36 @@
         </div>
         <ul class="listbox" id="home-results" role="listbox" aria-label="Matching games" hidden></ul>
       </form>
-      {% if suggestions %}
-      <p class="hero__try">Try {% for s in suggestions -%}
+      {% if try_sets %}
+      <p class="hero__try" data-try>Try {% for s in try_sets[0] -%}
         <a href="{{ url_for('pages.game_page', appid=s.appid) }}" title="{{ s.why }}">{{ s.name }}</a>
         {%- if loop.revindex == 2 %} or {% elif not loop.last %}, {% endif %}
-      {%- endfor %}.</p>
+      {%- endfor %}{{ "" if try_sets[0][-1].name.endswith(".") else "." }}</p>
+      {% if try_sets|length > 1 %}
+      <script type="application/json" id="try-sets">{{ try_sets|tojson }}</script>
+      <script>
+        /* The CDN serves everyone the same page, so it carries several sets of
+           suggestions. Show a random one, never the set this tab showed last,
+           before the line is painted. */
+        (function () {
+          var p = document.querySelector("[data-try]");
+          var sets = JSON.parse(document.getElementById("try-sets").textContent);
+          var last, i, pick, parts = ["Try "];
+          try { last = sessionStorage.getItem("playnexus_try"); } catch (e) {}
+          do { i = Math.floor(Math.random() * sets.length); } while (String(i) === last);
+          try { sessionStorage.setItem("playnexus_try", String(i)); } catch (e) {}
+          pick = sets[i];
+          pick.forEach(function (s, k) {
+            var a = document.createElement("a"), left = pick.length - 1 - k;
+            a.href = "/game/" + s.appid;
+            a.title = s.why;
+            a.textContent = s.name;
+            parts.push(a, left > 1 ? ", " : left === 1 ? " or " : /\.$/.test(s.name) ? "" : ".");
+          });
+          p.replaceChildren.apply(p, parts);
+        })();
+      </script>
+      {% endif %}
       {% endif %}
     </div>
 

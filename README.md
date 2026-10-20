@@ -107,7 +107,7 @@ Snapshots in `data/` ship with the app so pages never wait on slow sources. Refr
 | `python scripts/build_data.py tags` | `data/tags.json`: Steam tag names | No |
 | `python scripts/build_data.py pool` | `data/pool.json`: ~1,000 well-reviewed games with tags and measured playtime, used by Discover, Similar games and the value scores on Deals | No |
 | `python scripts/build_data.py index` | `data/search_index.json.gz`: every game plus real expansions (DLC with 500+ reviews; soundtracks, cosmetics and packs left out), ranked by popularity | Yes |
-| `python scripts/build_data.py gems` | `data/gems.json`: indie games with 94%+ positive and 1,000–70,000 reviews, for the home page's daily "Try …" suggestions. Run after `index` | No |
+| `python scripts/build_data.py gems` | `data/gems.json`: indie games with 94%+ positive and 1,000–70,000 reviews, for the home page's "Try …" suggestions. Run after `index` | No |
 
 Steam rate-limits review requests, so `pool` measures playtime gently and stops when Steam pushes back. Run it again later to fill in the rest. It resumes from `.cache/`. The `index` step takes about half an hour and also resumes if interrupted.
 
@@ -140,6 +140,7 @@ The site deploys on Vercel straight from GitHub: pushes to `main` go to producti
 - Files in `public/` (CSS, JS, images) are served by Vercel's CDN. Their URLs carry the commit hash, so `vercel.json` lets browsers cache them for a year.
 - Pages and API responses send `s-maxage` headers, so the CDN answers most visitors without running Python or calling Steam. My Steam data is sent `private, no-store` and never cached.
 - Because pages are shared by everyone, they're rendered with US prices. For visitors elsewhere, `public/static/js/prices.js` fetches their store's prices from `/api/prices/batch?ids=…&region=…` (up to 100 apps, also CDN-cached) and swaps them in; CSS sets aside room for them first, so nothing shifts.
+- The home page's "Try …" line should change on every visit, so the cached page carries 20 sets of suggestions (`services/suggestions.py`: mostly indie gems, sometimes a big recent release or an all-time favorite) and a few lines of inline script show a random one before the line is painted.
 - The only database is the optional price history (above). Live data is cached in memory per instance, and the snapshots in `data/` cover the rest.
 
 ### Search engines and analytics

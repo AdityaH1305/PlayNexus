@@ -36,12 +36,12 @@ def home():
     if playing.get("error") or not best:
         mark_degraded()
     try:
-        picks = suggestions.todays_picks()
+        try_sets = suggestions.pick_sets()
     except Exception:  # a suggestion must never take the home page down
         log.exception("home page suggestions failed")
-        picks = list(suggestions.FALLBACK)
+        try_sets = [list(suggestions.FALLBACK)]
     return render_template(
-        "index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list(), suggestions=picks,
+        "index.html", playing=playing["rows"][:8], deals=best, vibes=vibes.vibe_list(), try_sets=try_sets,
     )
 
 
