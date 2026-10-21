@@ -7,6 +7,10 @@ again the same day just refreshes that day's rows.  Game pages read it back
 for a price chart and the lowest price in the last 90 days; the deals page
 flags sales at or below that low.
 
+With an IsThereAnyDeal key (services.itad), game pages chart ITAD's Steam log
+instead: two years for any game it knows, not just the ones we track.  Our own
+records are the fallback.
+
 22:00 UTC is hours after Steam's 10 a.m. Pacific price changes, so even a
 price cached three hours earlier (services.steam keeps them that long) is
 already today's.
@@ -24,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Iterable
 
 from config import Config
-from services import pool, steam
+from services import itad, pool, steam, steam_sales, timing
 from services.http import UpstreamError, chunks, ttl_cache
 
 log = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ CC = "us"  # the store we track; prices are in US cents
 WINDOW = 90  # days in "lowest in the last 90 days"
 NEAR = 0.10  # within 10% of that low counts as near it
 CHART_DAYS = 365  # history sent to game pages
+ITAD_CHART_DAYS = 2 * 365  # from ITAD, which goes back further
 TOP_SELLERS = 100  # this week's best sellers, tracked on top of the pool
 BATCH = 50  # apps per Steam price call, the most it takes
 WORKERS = 4  # Steam calls in flight at once during a snapshot
@@ -295,21 +300,80 @@ def _points(appid: int, day: dt.date) -> list[dict[str, Any]]:
     return [{"day": d, "final": f, "initial": i, "discount": disc} for d, f, i, disc in rows]
 
 
+def _live_row(appid: int) -> dict[str, Any] | None:
+    """Today's US price as a table row, if the US store sells the game."""
+    return _row(steam.price_overview([appid], CC).get(appid))
+
+
 def _live_price(appid: int) -> int | None:
     """Today's US price in cents, if the US store sells the game."""
-    row = _row(steam.price_overview([appid], CC).get(appid))
+    row = _live_row(appid)
     return row["final"] if row else None
+
+
+def _sales(start: dt.date, end: dt.date) -> list[dict[str, str]]:
+    """The big Steam sales between two days, for shading the chart."""
+    return [
+        {"name": s["name"], "start": s["start"].isoformat(), "end": s["end"].isoformat()}
+        for s in steam_sales.between(start, end + dt.timedelta(days=1))
+    ]
+
+
+def _from_itad(appid: int) -> dict[str, Any] | None:
+    """Price history from ITAD's Steam log, or ``None`` if ITAD doesn't know
+    the game.  The points mark each price change over two years (plus the
+    start of the 90-day window), so :func:`summarize` reads them as it reads
+    daily snapshots.  Raises :class:`UpstreamError` if ITAD fails."""
+    log = itad.steam_history(appid)
+    if not log or not log["events"]:
+        return None
+    day = timing.steam_today()
+    live = _live_row(appid)
+    runs = timing.spans(log["events"], day, timing.Now(live["final"], live["initial"]) if live else None)
+    start = day - dt.timedelta(days=ITAD_CHART_DAYS - 1)
+    window = day - dt.timedelta(days=WINDOW - 1)
+    points = []
+    for run in runs:
+        if run.price is None or run.end <= start:
+            continue
+        for at in sorted({max(run.start, start)} | ({window} if run.start < window < run.end else set())):
+            points.append({"day": at, "final": run.price, "initial": run.regular, "discount": run.cut})
+    if not points:
+        return None
+    if points[-1]["day"] < day:
+        points.append({**points[-1], "day": day})  # the chart runs up to today
+    now = live["final"] if live else None
+    low, status = summarize(points, day, now)
+    return {
+        "currency": "USD",
+        "points": [{**p, "day": p["day"].isoformat()} for p in points],
+        "low": low,
+        "now": now,
+        "status": status,
+        "sales": _sales(points[0]["day"], day),
+        "source": {"name": "IsThereAnyDeal", "url": log["url"]},
+    }
 
 
 def game_history(appid: int) -> dict[str, Any]:
     """Everything a game page shows about price history.
 
-    ``points``: daily US prices in cents, oldest first, up to a year.
+    ``points``: US prices in cents, oldest first: two years of price changes
+    from ITAD, or up to a year of our daily snapshots.
     ``low``: the lowest of the last 90 days (see :func:`summarize`).
     ``now`` and ``status``: today's US price and how it compares with that.
-    ``degraded`` is set when the database couldn't be read.
+    ``sales``: the big Steam sales the chart spans.  ``source``: set for ITAD.
+    ``degraded`` is set when ITAD or the database couldn't be read.
     """
     out: dict[str, Any] = {"currency": "USD", "points": [], "low": None, "now": None, "status": None}
+    if itad.enabled():
+        try:
+            found = _from_itad(appid)
+        except UpstreamError:
+            out["degraded"] = True  # fall back to our records, and try ITAD again soon
+        else:
+            if found:
+                return found
     if not enabled():
         return out
     day = today()
@@ -328,6 +392,7 @@ def game_history(appid: int) -> dict[str, Any]:
         low=low,
         now=now,
         status=status,
+        sales=_sales(points[0]["day"], day),
     )
     return out
 

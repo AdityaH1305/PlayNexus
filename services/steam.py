@@ -120,6 +120,33 @@ def store_items(appids: Iterable[int], cc: str = "US") -> dict[int, dict | None]
     return {k[0]: v for k, v in res.items()}
 
 
+@ttl_cache(ttl=HOUR, fail_ttl=120)
+def discount_end(appid: int, package_id: int | None = None) -> int | None:
+    """When the game's current US discount ends (a Unix time), or ``None`` if
+    it isn't discounted.
+
+    Reads the purchase option for *package_id*, the game's main package
+    (``appdetails["packages"][0]``), falling back to its first package: the
+    best purchase option is sometimes a bundle with a deeper cut of its own.
+    """
+    payload = {
+        "ids": [{"appid": appid}],
+        "context": {"language": "english", "country_code": "US"},
+        "data_request": {"include_all_purchase_options": True},
+    }
+    data = get_json(
+        f"{WEBAPI}/IStoreBrowseService/GetItems/v1/",
+        {"input_json": json.dumps(payload, separators=(",", ":"))},
+    )
+    items = ((data or {}).get("response") or {}).get("store_items") or []
+    item = next((i for i in items if str(i.get("appid")) == str(appid)), None)
+    packages = [o for o in (item or {}).get("purchase_options") or [] if o.get("packageid")]
+    option = next((o for o in packages if str(o["packageid"]) == str(package_id)), packages[0] if packages else None)
+    ends = [int(d["discount_end_date"]) for d in (option or {}).get("active_discounts") or []
+            if d.get("discount_end_date")]
+    return min(ends) if ends else None
+
+
 def asset_url(item_assets: dict | None, key: str) -> str | None:
     """Build a CDN URL for one asset (``header``, ``library_hero``…)."""
     if not item_assets:

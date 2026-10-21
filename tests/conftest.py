@@ -44,6 +44,14 @@ def _no_database(monkeypatch):
     monkeypatch.setattr(Config, "CRON_SECRET", "")
 
 
+@pytest.fixture(autouse=True)
+def _no_itad(monkeypatch):
+    """IsThereAnyDeal is off unless a test turns it on, whatever key a local .env sets."""
+    from config import Config
+
+    monkeypatch.setattr(Config, "ITAD_API_KEY", "")
+
+
 @pytest.fixture
 def fixed_fx(monkeypatch):
     from services import fx

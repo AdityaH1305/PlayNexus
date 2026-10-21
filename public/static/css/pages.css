@@ -1156,6 +1156,36 @@
   }
 }
 
+/* Buy now or wait */
+
+.timing__verdict {
+  font-family: var(--font-display);
+  font-size: var(--fs-24);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.timing__verdict--buy {
+  color: var(--pos);
+}
+
+.timing__verdict--wait {
+  color: var(--mixed);
+}
+
+.timing__summary {
+  margin-top: var(--s-1);
+  color: var(--text-2);
+}
+
+.timing .buy-notes {
+  border-top: 1px solid var(--line-soft);
+}
+
+.timing__fact {
+  font-size: var(--fs-13);
+}
+
 /* Before you buy */
 
 .buy-notes {
@@ -1540,6 +1570,15 @@
   height: 0;
   vertical-align: middle;
   border-top: 2px dashed var(--pos);
+}
+
+.history .sale-band {
+  fill: var(--raised);
+}
+
+.history-legend .sale::before {
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 /* Lowest of the last 90 days, in the price check panel */

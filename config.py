@@ -22,6 +22,9 @@ class Config:
 
     # ── Upstream APIs ─────────────────────────────────────
     STEAM_API_KEY: str = os.getenv("STEAM_API_KEY", "")
+    # IsThereAnyDeal: years of Steam price history, for "Buy now or wait?" and
+    # the price chart. Free from an app registered on isthereanydeal.com.
+    ITAD_API_KEY: str = os.getenv("ITAD_API_KEY", "")
     HTTP_TIMEOUT: float = float(os.getenv("HTTP_TIMEOUT", "6"))
     MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", "16"))
     # CheapShark rejects generic user agents, so say who we are.

@@ -12,7 +12,7 @@ from config import Config
 from routes.caching import cdn_cache, mark_degraded, no_store
 from services import charts, cheapshark, discover, history, steam_account
 from services import game as game_service
-from services import fx, pricing, reviews, steam
+from services import fx, itad, pricing, reviews, steam, timing
 from services.http import UpstreamError, executor
 from services.recommendations import get_recommendations
 from services.search import search
@@ -128,6 +128,24 @@ def api_game_history(appid: int):
     if data.pop("degraded", False):
         mark_degraded()
     return jsonify(data)
+
+
+@bp.route("/game/<int:appid>/timing")
+@cdn_cache(s_maxage=3 * 3600, swr=86400)
+def api_game_timing(appid: int):
+    """Buy now or wait? (services.timing).  404 when there's nothing to judge
+    or no IsThereAnyDeal key; 503 when Steam can't be reached."""
+    if not itad.enabled():
+        abort(404)
+    try:
+        result = timing.assess(appid)
+    except UpstreamError:
+        abort(503)
+    if result is None:
+        abort(404)
+    if result.pop("degraded", False):
+        mark_degraded()
+    return jsonify(result)
 
 
 def _from_vercel_cron() -> bool:

@@ -118,12 +118,14 @@ function gridStep(max) {
 }
 
 /**
- * Daily US price as a step line: each day's price holds until the next
- * snapshot. The scale starts at zero, so a half-price sale really halves the
- * line. A dashed line marks the lowest price of the last 90 days.
+ * US price as a step line: each price holds until the next point (a daily
+ * snapshot, or a price change from IsThereAnyDeal). The scale starts at zero,
+ * so a half-price sale really halves the line. A dashed line marks the lowest
+ * price of the last 90 days, and big Steam sales are shaded behind.
  * @param {HTMLElement} el
  * @param {{points: {day:string, final:number, initial:number, discount:number}[],
- *          low: ?{final:number, full:boolean, since:string}}} data  prices in cents
+ *          low: ?{final:number, full:boolean, since:string},
+ *          sales?: {name:string, start:string, end:string}[]}} data  prices in cents
  */
 export function priceHistory(el, data) {
   const pts = (data.points || []).map((p) => ({ ...p, t: dayTime(p.day) }));
@@ -150,6 +152,16 @@ export function priceHistory(el, data) {
   const f = (n) => n.toFixed(1);
 
   const parts = [];
+  // Big Steam sales, behind everything else. A sale's last day ends at 10 a.m.
+  // Pacific, so the band stops at the start of its end date.
+  let bands = 0;
+  (data.sales || []).forEach((s) => {
+    const x1 = xAt(Math.max(first, dayTime(s.start)));
+    const x2 = xAt(Math.min(end.t + DAY, dayTime(s.end)));
+    if (x2 - x1 < 0.5) return;
+    bands += 1;
+    parts.push(`<rect class="sale-band" x="${f(x1)}" y="${pad.t}" width="${f(x2 - x1)}" height="${f(plotH)}"><title>${escapeHtml(s.name)}</title></rect>`);
+  });
   for (let v = step; v <= top; v += step) {
     parts.push(`<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${f(yAt(v))}" y2="${f(yAt(v))}"/>`);
     parts.push(`<text class="tick" x="${pad.l}" y="${f(yAt(v) - 4)}">${centsTick(v)}</text>`);
@@ -171,17 +183,21 @@ export function priceHistory(el, data) {
   parts.push(`<path class="price-line" d="${line}"/>`);
   parts.push(`<circle class="price-dot" cx="${f(xAt(end.t) + slot / 2)}" cy="${f(yAt(end.final))}" r="3.5"/>`);
 
-  // Dates along the bottom: about six for short histories, otherwise each month.
+  // Dates along the bottom: about six for short histories, otherwise each
+  // month, or each quarter once there's more than about a year.
   const ticks = [];
   if (days <= 45) {
     const every = Math.ceil(days / 6);
     for (let i = 0; i < days; i += every) ticks.push(first + i * DAY);
   } else {
+    const months = days > 400 ? 3 : 1;
     const d0 = new Date(first);
-    for (let m = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1); m <= end.t; ) {
+    let m = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1);
+    while (new Date(m).getUTCMonth() % months) m = Date.UTC(new Date(m).getUTCFullYear(), new Date(m).getUTCMonth() + 1, 1);
+    for (; m <= end.t; ) {
       ticks.push(m);
       const d = new Date(m);
-      m = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+      m = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1);
     }
   }
   ticks.forEach((t) => {
@@ -198,14 +214,14 @@ export function priceHistory(el, data) {
 
   const lowest = pts.reduce((a, b) => (b.final <= a.final ? b : a));
   const summary =
-    `US price, recorded daily from ${dayLabel(pts[0].day, { year: true })} to ${dayLabel(end.day, { year: true })}. ` +
+    `US price from ${dayLabel(pts[0].day, { year: true })} to ${dayLabel(end.day, { year: true })}. ` +
     `Latest ${cents(end.final)}${end.discount ? `, ${end.discount}% off` : ""}. ` +
     `Lowest ${cents(lowest.final)}, on ${dayLabel(lowest.day, { year: true })}.`;
   const lowLabel = low && (low.full ? "Lowest in 90 days" : `Lowest since ${dayLabel(low.since)}`);
   el.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(summary)}">${parts.join("")}</svg>
     <div class="history-tip" hidden></div>
-    <div class="history-legend"><span class="price">US price</span>${low ? `<span class="low">${escapeHtml(lowLabel)}</span>` : ""}</div>`;
+    <div class="history-legend"><span class="price">US price</span>${low ? `<span class="low">${escapeHtml(lowLabel)}</span>` : ""}${bands ? '<span class="sale">Big Steam sales</span>' : ""}</div>`;
 
   const svg = el.querySelector("svg");
   const tip = el.querySelector(".history-tip");

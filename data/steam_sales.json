@@ -1,0 +1,33 @@
+{
+  "updated": "2026-10-21",
+  "note": "Steam's four seasonal sales. Each runs from 10 a.m. Pacific on start to 10 a.m. Pacific on end. Refresh once a year from Valve's Upcoming Steam Events page.",
+  "sources": [
+    "https://partner.steamgames.com/doc/marketing/upcoming_events",
+    "https://www.pcgamer.com/steam-sale-dates",
+    "https://www.gamesradar.com/games/steam-sale-guide",
+    "https://www.gamingonlinux.com/2026/01/valve-reveal-all-the-steam-events-scheduled-for-2026",
+    "https://www.neowin.net/news/valve-reveals-steam-sales-and-event-dates-for-2025-changes-up-autumn-sale-period/"
+  ],
+  "sales": [
+    {"name": "Autumn Sale", "start": "2022-11-22", "end": "2022-11-29"},
+    {"name": "Winter Sale", "start": "2022-12-22", "end": "2023-01-05"},
+    {"name": "Spring Sale", "start": "2023-03-16", "end": "2023-03-23"},
+    {"name": "Summer Sale", "start": "2023-06-29", "end": "2023-07-13"},
+    {"name": "Autumn Sale", "start": "2023-11-21", "end": "2023-11-28"},
+    {"name": "Winter Sale", "start": "2023-12-21", "end": "2024-01-04"},
+    {"name": "Spring Sale", "start": "2024-03-14", "end": "2024-03-21"},
+    {"name": "Summer Sale", "start": "2024-06-27", "end": "2024-07-11"},
+    {"name": "Autumn Sale", "start": "2024-11-27", "end": "2024-12-04"},
+    {"name": "Winter Sale", "start": "2024-12-19", "end": "2025-01-02"},
+    {"name": "Spring Sale", "start": "2025-03-13", "end": "2025-03-20"},
+    {"name": "Summer Sale", "start": "2025-06-26", "end": "2025-07-10"},
+    {"name": "Autumn Sale", "start": "2025-09-29", "end": "2025-10-06"},
+    {"name": "Winter Sale", "start": "2025-12-18", "end": "2026-01-05"},
+    {"name": "Spring Sale", "start": "2026-03-19", "end": "2026-03-26"},
+    {"name": "Summer Sale", "start": "2026-06-25", "end": "2026-07-09"},
+    {"name": "Autumn Sale", "start": "2026-10-01", "end": "2026-10-08"},
+    {"name": "Winter Sale", "start": "2026-12-17", "end": "2027-01-04"},
+    {"name": "Spring Sale", "start": "2027-03-18", "end": "2027-03-25"},
+    {"name": "Summer Sale", "start": "2027-06-24", "end": "2027-07-08"}
+  ]
+}

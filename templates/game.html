@@ -109,7 +109,7 @@
               {%- if wi.great and wi.great >= 200 -%}Great value at almost any price.
               {%- elif wi.great -%}
                 {%- if game.usd_price and game.usd_price <= wi.great -%}Already great value at the US price.
-                {%- else -%}Becomes great value at <strong class="num">{{ wi.great|usd }}</strong> or less{% if game.usd_price %}, so it's worth waiting for a sale{% endif %}.{%- endif -%}
+                {%- else -%}Becomes great value at <strong class="num">{{ wi.great|usd }}</strong> or less.{%- endif -%}
               {%- elif wi.good -%}Good value at <strong class="num">{{ wi.good|usd }}</strong> or less, but it can't reach great value at any price.
               {%- else -%}Not good value at any price: reviews are too mixed or playtime is too short.
               {%- endif -%}
@@ -130,6 +130,15 @@
             {% endif %}
           </div>
         </section>
+
+        {# ── Buy now or wait? (filled in by game.js) ───── #}
+        {% if timing_enabled and not game.is_free and not game.coming_soon and us and us.available %}
+        <section class="panel timing" aria-labelledby="timing-title">
+          <div class="panel__head"><h2 id="timing-title">Buy now or wait?</h2></div>
+          <div data-timing aria-live="polite"><div class="panel__body">{{ ui.skeleton_rows(3) }}</div></div>
+          <p class="panel__foot" data-timing-source hidden></p>
+        </section>
+        {% endif %}
 
         {# ── Before you buy (only when there's something to say) ── #}
         {% if game.notes %}
@@ -223,7 +232,7 @@
           <div class="panel__body">
             <div class="history" data-price-history></div>
           </div>
-          <p class="panel__foot">The US Steam price, recorded once a day.</p>
+          <p class="panel__foot" data-price-history-source>The US Steam price, recorded once a day.</p>
         </section>
         {% endif %}
 

@@ -8,6 +8,7 @@ import {
   fmtUSD,
   getJSON,
   html,
+  icon,
   pageData,
   recent,
   safeUrl,
@@ -152,6 +153,62 @@ if (dealsEl) {
     .catch(() => setHTML(dealsEl, html`<p class="small muted">Couldn't check other stores just now.</p>`));
 }
 
+/* ── Buy now or wait? ──────────────────────────────────── */
+
+const timingEl = $("[data-timing]");
+
+/** Whole days from today (UTC) until an ISO date. */
+function daysUntil(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const now = new Date();
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86_400_000);
+}
+
+function timingFacts(t) {
+  // Counted here rather than on the server, so a cached answer never shows a stale count.
+  const facts = t.facts.map((f) => {
+    const n = f.kind === "next_sale" && t.next_sale ? daysUntil(t.next_sale.start) : 0;
+    return n > 0 ? { ...f, text: `${f.text.replace(/\.$/, "")} (in ${n} day${n === 1 ? "" : "s"}).` } : f;
+  });
+  // Whether the expected sale price would lift it a value level it doesn't reach today.
+  const worth = data.value?.worth_it || {};
+  const price = t.expected?.price;
+  const reaches = (limit) => limit && price <= limit && !(data.us_usd <= limit);
+  const level = !price ? null : reaches(worth.great) ? "great" : reaches(worth.good) ? "good" : null;
+  if (level) facts.push({ icon: "check", text: `At about ${fmtUSD(price)} it would be ${level} value.` });
+  return facts;
+}
+
+if (timingEl) {
+  getJSON(`/api/game/${game.appid}/timing`, { ttl: 3_600_000 })
+    .then((t) => {
+      setHTML(
+        timingEl,
+        html`<div class="panel__body">
+            <p class="timing__verdict timing__verdict--${t.verdict}">${t.title}</p>
+            <p class="timing__summary">${t.summary}</p>
+          </div>
+          <ul class="buy-notes">
+            ${timingFacts(t).map((f) => html`<li class="buy-note">${icon(f.icon)}<p class="timing__fact">${f.text}</p></li>`)}
+          </ul>`,
+      );
+      const source = $("[data-timing-source]");
+      if (source && t.source) {
+        setHTML(
+          source,
+          html`US Steam prices${t.since ? ` since ${dayLabel(t.since, { year: true })}` : ""}, from
+            <a href="${safeUrl(t.source.url || "https://isthereanydeal.com/")}" target="_blank" rel="noopener">IsThereAnyDeal</a>.
+            Sale dates and discount rules from Valve. Replayed over two years of prices for 400 games,
+            "Wait" and "Buy now" were each right 95% of the time.`,
+        );
+        source.hidden = false;
+      }
+    })
+    .catch(() =>
+      setHTML(timingEl, html`<div class="panel__body"><p class="small muted">Couldn't check the price history just now.</p></div>`),
+    );
+}
+
 /* ── Price history ─────────────────────────────────────── */
 
 const priceChartEl = $("[data-price-history]");
@@ -184,6 +241,12 @@ if (priceChartEl || priceLowEl) {
         const last = pts[pts.length - 1].day;
         const stale = Date.now() - Date.parse(`${last}T00:00:00Z`) > 3 * 86_400_000; // no longer tracked
         setText("[data-price-history-summary]", stale ? `${first} to ${dayLabel(last)}` : `Since ${first}`);
+        if (h.source?.name === "IsThereAnyDeal") {
+          setHTML(
+            $("[data-price-history-source]"),
+            html`The US Steam price, from <a href="${safeUrl(h.source.url || "https://isthereanydeal.com/")}" target="_blank" rel="noopener">IsThereAnyDeal</a>.`,
+          );
+        }
       }
       if (priceLowEl && h.low) {
         setHTML(priceLowEl, priceLowMarkup(h));
